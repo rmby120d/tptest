@@ -16,14 +16,12 @@ if "carrito" not in st.session_state:
 st.title("Simulador de Pedidos")
 st.subheader("1. Selecciona un producto")
 
-# Filtro por categoría completa
 df_pvp["PRODUCTO_TAM"] = df_pvp["PRODUCT"] + " (" + df_pvp["SIZE"].fillna("Tamaño único") + ")"
 categoria = st.selectbox("Filtrar por categoría", ["Todo"] + sorted(df_pvp["SECONDARY GROUP"].dropna().unique()))
 productos = df_pvp.copy()
 if categoria != "Todo":
     productos = productos[productos["SECONDARY GROUP"] == categoria]
 
-# Búsqueda
 busqueda = st.text_input("Buscar por nombre o código")
 if busqueda:
     productos = productos[
@@ -31,22 +29,10 @@ if busqueda:
         productos["PRODUCT ID"].astype(str).str.contains(busqueda)
     ]
 
-# Desplegable
 producto_seleccionado = st.selectbox("Elige un producto del catálogo", productos["PRODUCTO_TAM"].tolist())
 
 if producto_seleccionado:
     st.subheader("2. Personaliza tu producto")
-
-    # Mostrar ingredientes por defecto si existen
-    ingredientes_defecto = df_detalle[
-        df_detalle["Clv. producto Compuesto"] == cod_producto
-    ][["Producto simple"]].dropna().drop_duplicates()
-
-    if not ingredientes_defecto.empty:
-        st.markdown("**Ingredientes por defecto:**")
-        for _, row in ingredientes_defecto.iterrows():
-            st.markdown(f"- {row['Producto simple']}")
-    
 
     prod_data = productos[productos["PRODUCTO_TAM"] == producto_seleccionado].iloc[0]
     cod_producto = prod_data["PRODUCT ID"]
@@ -58,6 +44,16 @@ if producto_seleccionado:
     st.markdown(f"**Producto:** {nombre_producto}")
     st.markdown(f"**Tamaño:** {size}")
     st.markdown(f"**Precio base:** ${precio_base}")
+
+    # Mostrar ingredientes por defecto
+    ingredientes_defecto = df_detalle[
+        df_detalle["Clv. producto Compuesto"] == cod_producto
+    ][["Producto simple"]].dropna().drop_duplicates()
+
+    if not ingredientes_defecto.empty:
+        st.markdown("**Ingredientes por defecto:**")
+        for _, row in ingredientes_defecto.iterrows():
+            st.markdown(f"- {row['Producto simple']}")
 
     ingredientes_prod = df_detalle[df_detalle["Clv. producto Compuesto"] == cod_producto]
     ingredientes_disponibles = ingredientes_prod[["GRUPO MASAS", "Producto simple", "PVP"]].dropna()
