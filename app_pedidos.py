@@ -37,6 +37,17 @@ producto_seleccionado = st.selectbox("Elige un producto del catálogo", producto
 if producto_seleccionado:
     st.subheader("2. Personaliza tu producto")
 
+    # Mostrar ingredientes por defecto si existen
+    ingredientes_defecto = df_detalle[
+        df_detalle["Clv. producto Compuesto"] == cod_producto
+    ][["Producto simple"]].dropna().drop_duplicates()
+
+    if not ingredientes_defecto.empty:
+        st.markdown("**Ingredientes por defecto:**")
+        for _, row in ingredientes_defecto.iterrows():
+            st.markdown(f"- {row['Producto simple']}")
+    
+
     prod_data = productos[productos["PRODUCTO_TAM"] == producto_seleccionado].iloc[0]
     cod_producto = prod_data["PRODUCT ID"]
     nombre_producto = prod_data["PRODUCT"]
