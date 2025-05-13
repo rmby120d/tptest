@@ -20,20 +20,20 @@ if "carrito" not in st.session_state:
 st.title("Calculadora de Pedidos - Pizzería")
 
 # Selector de categoría
-categoria = st.selectbox("Selecciona la categoría", productos["SECONDARY GROUP"].unique())
+categoria = st.selectbox("Selecciona la categoría", productos["SECONDARY GROUP"].dropna().unique())
 
 # Filtrar productos por categoría
 productos_categoria = productos[productos["SECONDARY GROUP"] == categoria]
 
-# Detectar nombre y código correcto del producto
-columna_producto = [c for c in productos.columns if "PRODUCT" in c.upper() and "NAME" not in c.upper()][0]
-columna_codigo = "PRODUCT ID" if "PRODUCT ID" in productos.columns else productos.columns[0]  # fallback
+# Columnas fijas para legibilidad
+columna_codigo = "PRODUCT ID"
+columna_producto = "PRODUCT"
 
 # Mostrar lista de productos con botón de agregar
 st.subheader("Productos disponibles")
 for _, fila in productos_categoria.iterrows():
-    nombre = fila[columna_producto]
     codigo = fila[columna_codigo]
+    nombre = fila[columna_producto]
     precio = fila["DELIVERY PVP 281"]
     size = fila["SIZE"] if pd.notna(fila["SIZE"]) else "Tamaño único"
     key = f"{codigo}_{size}"
@@ -42,7 +42,7 @@ for _, fila in productos_categoria.iterrows():
     with cols[0]:
         st.write(f"**{codigo} - {nombre} ({size})**")
     with cols[1]:
-        cantidad = st.number_input(f"Cantidad", min_value=1, max_value=20, value=1, key=key+"_qty")
+        cantidad = st.number_input("Cantidad", min_value=1, max_value=20, value=1, key=key+"_qty")
     with cols[2]:
         if st.button("Agregar", key=key+"_btn"):
             st.session_state["carrito"].append({
@@ -58,7 +58,7 @@ for _, fila in productos_categoria.iterrows():
 if st.session_state["carrito"]:
     st.subheader("🛒 Carrito de Compras")
     total = 0
-    for idx, item in enumerate(st.session_state["carrito"]):
+    for item in st.session_state["carrito"]:
         subtotal = item["precio"] * item["cantidad"]
         total += subtotal
         st.write(f"{item['cantidad']} x {item['codigo']} - {item['nombre']} ({item['tamaño']}) = $ {subtotal:.2f}")
