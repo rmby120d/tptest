@@ -5,7 +5,7 @@ import pandas as pd
 # Cargar datos
 @st.cache_data
 def cargar_datos():
-    file = "Catálogo productos TPC tiendas Antracita y Cea (1) (1).xlsx"
+    file = "Catalogo.xlsx"
     pvp_simples = pd.read_excel(file, sheet_name="PVP Simples")
     activos = pvp_simples[pvp_simples["Estado.1"] == "Activo 281"]
     return activos
