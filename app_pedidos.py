@@ -13,14 +13,13 @@ df_pvp, df_detalle = cargar_datos()
 if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 
-st.title("🧾 Simulador de Pedidos")
-st.subheader("1️⃣ Selecciona un producto")
+st.title("Simulador de Pedidos")
+st.subheader("1. Selecciona un producto")
 
-# Filtro por categoría
-productos = df_pvp[df_pvp["Estado.1"] == "Activo 281"].copy()
-productos["PRODUCTO_TAM"] = productos["PRODUCT"] + " (" + productos["SIZE"].fillna("Tamaño único") + ")"
-
-categoria = st.selectbox("Filtrar por categoría", ["Todo"] + sorted(productos["SECONDARY GROUP"].dropna().unique()))
+# Filtro por categoría completa
+df_pvp["PRODUCTO_TAM"] = df_pvp["PRODUCT"] + " (" + df_pvp["SIZE"].fillna("Tamaño único") + ")"
+categoria = st.selectbox("Filtrar por categoría", ["Todo"] + sorted(df_pvp["SECONDARY GROUP"].dropna().unique()))
+productos = df_pvp.copy()
 if categoria != "Todo":
     productos = productos[productos["SECONDARY GROUP"] == categoria]
 
@@ -32,11 +31,11 @@ if busqueda:
         productos["PRODUCT ID"].astype(str).str.contains(busqueda)
     ]
 
-# Desplegable de productos filtrado
+# Desplegable
 producto_seleccionado = st.selectbox("Elige un producto del catálogo", productos["PRODUCTO_TAM"].tolist())
 
 if producto_seleccionado:
-    st.subheader("2️⃣ Personaliza tu producto")
+    st.subheader("2. Personaliza tu producto")
 
     prod_data = productos[productos["PRODUCTO_TAM"] == producto_seleccionado].iloc[0]
     cod_producto = prod_data["PRODUCT ID"]
@@ -49,7 +48,6 @@ if producto_seleccionado:
     st.markdown(f"**Tamaño:** {size}")
     st.markdown(f"**Precio base:** ${precio_base}")
 
-    # Ingredientes configurables
     ingredientes_prod = df_detalle[df_detalle["Clv. producto Compuesto"] == cod_producto]
     ingredientes_disponibles = ingredientes_prod[["GRUPO MASAS", "Producto simple", "PVP"]].dropna()
 
@@ -70,11 +68,10 @@ if producto_seleccionado:
     else:
         st.info("Este producto no tiene ingredientes configurables.")
 
-    # Confirmación
-    st.subheader("3️⃣ Confirmación")
+    st.subheader("3. Confirmación")
     cantidad = st.number_input("Cantidad", min_value=1, max_value=20, value=1)
 
-    if st.button("➕ Añadir al carrito"):
+    if st.button("Añadir al carrito"):
         extras_total = sum([v["precio"] for v in ingredientes_seleccionados.values()])
         item = {
             "codigo": cod_producto,
@@ -87,8 +84,7 @@ if producto_seleccionado:
         st.session_state["carrito"].append(item)
         st.success(f"{cantidad} x {nombre_producto} añadido al carrito")
 
-# Carrito lateral
-st.sidebar.subheader("🛒 Carrito")
+st.sidebar.subheader("Carrito")
 if st.session_state["carrito"]:
     total = 0
     for item in st.session_state["carrito"]:
@@ -100,7 +96,7 @@ if st.session_state["carrito"]:
                 texto += f" | {grupo}: {detalle['nombre']} (+${detalle['precio']})"
         st.sidebar.markdown(texto)
     st.sidebar.markdown(f"**Total: ${total:.2f}**")
-    if st.sidebar.button("🧹 Vaciar carrito"):
+    if st.sidebar.button("Vaciar carrito"):
         st.session_state["carrito"] = []
         st.experimental_rerun()
 else:
