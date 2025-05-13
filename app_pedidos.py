@@ -12,6 +12,10 @@ def cargar_datos():
 
 productos = cargar_datos()
 
+# Inicializar carrito en session_state
+if "carrito" not in st.session_state:
+    st.session_state["carrito"] = []
+
 # Título
 st.title("Calculadora de Pedidos - Pizzería")
 
@@ -21,32 +25,47 @@ categoria = st.selectbox("Selecciona la categoría", productos["SECONDARY GROUP"
 # Filtrar productos por categoría
 productos_categoria = productos[productos["SECONDARY GROUP"] == categoria]
 
-# Mostrar lista de productos con checkbox
-st.subheader("Productos disponibles")
-carrito = []
-
-# Detectar el nombre correcto de la columna de producto
+# Detectar nombre y código correcto del producto
 columna_producto = [c for c in productos.columns if "PRODUCT" in c.upper() and "NAME" not in c.upper()][0]
+columna_codigo = "PRODUCT ID" if "PRODUCT ID" in productos.columns else productos.columns[0]  # fallback
 
+# Mostrar lista de productos con botón de agregar
+st.subheader("Productos disponibles")
 for _, fila in productos_categoria.iterrows():
     nombre = fila[columna_producto]
+    codigo = fila[columna_codigo]
     precio = fila["DELIVERY PVP 281"]
     size = fila["SIZE"] if pd.notna(fila["SIZE"]) else "Tamaño único"
-    key = f"{nombre}_{size}"
+    key = f"{codigo}_{size}"
 
-    if st.checkbox(f"{nombre} ({size}) - $ {precio:.2f}", key=key):
-        cantidad = st.number_input(f"Cantidad de {nombre} ({size})", min_value=1, max_value=20, value=1, key=key+"_qty")
-        carrito.append({"nombre": nombre, "tamaño": size, "precio": precio, "cantidad": cantidad})
+    cols = st.columns([4, 1, 1])
+    with cols[0]:
+        st.write(f"**{codigo} - {nombre} ({size})**")
+    with cols[1]:
+        cantidad = st.number_input(f"Cantidad", min_value=1, max_value=20, value=1, key=key+"_qty")
+    with cols[2]:
+        if st.button("Agregar", key=key+"_btn"):
+            st.session_state["carrito"].append({
+                "codigo": codigo,
+                "nombre": nombre,
+                "tamaño": size,
+                "precio": precio,
+                "cantidad": cantidad
+            })
+            st.success(f"Agregado: {cantidad} x {nombre} ({size})")
 
-# Mostrar resumen del pedido
-if carrito:
-    st.subheader("Resumen del Pedido")
+# Mostrar resumen del carrito
+if st.session_state["carrito"]:
+    st.subheader("🛒 Carrito de Compras")
     total = 0
-    for item in carrito:
+    for idx, item in enumerate(st.session_state["carrito"]):
         subtotal = item["precio"] * item["cantidad"]
         total += subtotal
-        st.write(f"{item['cantidad']} x {item['nombre']} ({item['tamaño']}) = $ {subtotal:.2f}")
-
+        st.write(f"{item['cantidad']} x {item['codigo']} - {item['nombre']} ({item['tamaño']}) = $ {subtotal:.2f}")
     st.markdown(f"### Total: $ {total:.2f}")
+
+    if st.button("🧹 Vaciar carrito"):
+        st.session_state["carrito"] = []
+        st.experimental_rerun()
 else:
-    st.info("Selecciona productos para empezar tu pedido.")
+    st.info("Tu carrito está vacío. Agrega productos para comenzar.")
