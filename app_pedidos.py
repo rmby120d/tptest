@@ -5,7 +5,7 @@ import pandas as pd
 # Cargar datos
 @st.cache_data
 def cargar_datos():
-    file = "Catalogo.xlsx"
+    file = "catalogo_productos.xlsx"
     pvp_simples = pd.read_excel(file, sheet_name="PVP Simples")
     activos = pvp_simples[pvp_simples["Estado.1"] == "Activo 281"]
     return activos
@@ -25,8 +25,11 @@ productos_categoria = productos[productos["SECONDARY GROUP"] == categoria]
 st.subheader("Productos disponibles")
 carrito = []
 
+# Detectar el nombre correcto de la columna de producto
+columna_producto = [c for c in productos.columns if "PRODUCT" in c.upper() and "NAME" not in c.upper()][0]
+
 for _, fila in productos_categoria.iterrows():
-    nombre = fila["PRODUCT (No column name)"]
+    nombre = fila[columna_producto]
     precio = fila["DELIVERY PVP 281"]
     size = fila["SIZE"] if pd.notna(fila["SIZE"]) else "Tamaño único"
     key = f"{nombre}_{size}"
