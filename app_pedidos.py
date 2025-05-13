@@ -32,13 +32,16 @@ producto_seleccionado = st.selectbox(
 )
 
 if producto_seleccionado:
-    # Paso 2: Personalización
     st.subheader("2️⃣ Personaliza tu producto")
 
-    prod_data = productos[productos["PRODUCT"] == producto_seleccionado].iloc[0]
-    cod_producto = prod_data["PRODUCT ID"]
-    precio_base = prod_data["DELIVERY PVP 281"]
-    size = prod_data["SIZE"] if pd.notna(prod_data["SIZE"]) else "Tamaño único"
+    productos_base = productos[productos["PRODUCT"] == producto_seleccionado]
+    cod_producto = productos_base["PRODUCT ID"].iloc[0]
+    precios_disponibles = productos_base[["SIZE", "DELIVERY PVP 281"]].dropna().drop_duplicates()
+    sizes = precios_disponibles["SIZE"].tolist()
+
+    # Selección de tamaño
+    size = st.selectbox("Elige el tamaño de tu producto", sizes)
+    precio_base = float(precios_disponibles[precios_disponibles["SIZE"] == size]["DELIVERY PVP 281"].iloc[0])
 
     st.markdown(f"**Código:** {cod_producto}")
     st.markdown(f"**Precio base:** ${precio_base}")
@@ -48,14 +51,28 @@ if producto_seleccionado:
     ingredientes_defecto = df_detalle[
         (df_detalle["Clv. producto Compuesto"] == cod_producto) &
         (df_detalle["Producto simple"].notna())
-    ]["Producto simple"].dropna().unique()
+    ][["INGREDIENTS GROUP", "Producto simple"]].drop_duplicates()
 
-    if len(ingredientes_defecto):
+    if not ingredientes_defecto.empty:
         st.markdown("**Ingredientes por defecto:**")
-        for i in ingredientes_defecto:
-            st.markdown(f"- {i}")
+        for _, row in ingredientes_defecto.iterrows():
+            st.markdown(f"- {row['Producto simple']} ({row['INGREDIENTS GROUP']})")
     else:
-        st.info("Este producto no tiene ingredientes configurables.")
+        st.info("Este producto no tiene ingredientes configurables por defecto.")
+
+    # Opciones por grupo dinámicamente
+    grupos_configurables = df_detalle[
+        (df_detalle["Clv. producto Compuesto"] == cod_producto) &
+        (df_detalle["DEFAULT CONFIGURATION"] != "Included by default")
+    ][["INGREDIENTS GROUP", "INGREDIENTS"]].dropna().drop_duplicates()
+
+    ingredientes_seleccionados = {}
+
+    if not grupos_configurables.empty:
+        for grupo in grupos_configurables["INGREDIENTS GROUP"].unique():
+            opciones = grupos_configurables[grupos_configurables["INGREDIENTS GROUP"] == grupo]["INGREDIENTS"].unique()
+            seleccion = st.selectbox(f"Selecciona una opción de {grupo}", opciones, key=grupo)
+            ingredientes_seleccionados[grupo] = seleccion
 
     # Paso 3: Confirmación
     st.subheader("3️⃣ Confirmación")
@@ -66,12 +83,13 @@ if producto_seleccionado:
             "nombre": producto_seleccionado,
             "tamaño": size,
             "precio": precio_base,
-            "cantidad": cantidad
+            "cantidad": cantidad,
+            "extras": ingredientes_seleccionados
         }
         st.session_state["carrito"].append(item)
         st.success(f"{cantidad} x {producto_seleccionado} añadido al carrito")
 
-# Paso 4: Carrito
+# Paso 4: Carrito lateral
 st.sidebar.subheader("🛒 Carrito")
 if st.session_state["carrito"]:
     total = 0
@@ -79,6 +97,9 @@ if st.session_state["carrito"]:
         subtotal = item["precio"] * item["cantidad"]
         total += subtotal
         texto = f"{item['cantidad']} x {item['codigo']} - {item['nombre']} ({item['tamaño']}) = ${subtotal:.2f}"
+        if item["extras"]:
+            for grupo, seleccion in item["extras"].items():
+                texto += f" | {grupo}: {seleccion}"
         st.sidebar.markdown(texto)
     st.sidebar.markdown(f"**Total: ${total:.2f}**")
     if st.sidebar.button("🧹 Vaciar carrito"):
