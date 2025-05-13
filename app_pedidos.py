@@ -16,22 +16,24 @@ if "carrito" not in st.session_state:
 st.title("🧾 Simulador de Pedidos")
 st.subheader("1️⃣ Selecciona un producto")
 
-busqueda = st.text_input("Buscar por nombre o código")
-
-# Filtrar productos activos
+# Filtro por categoría
 productos = df_pvp[df_pvp["Estado.1"] == "Activo 281"].copy()
 productos["PRODUCTO_TAM"] = productos["PRODUCT"] + " (" + productos["SIZE"].fillna("Tamaño único") + ")"
 
+categoria = st.selectbox("Filtrar por categoría", ["Todo"] + sorted(productos["SECONDARY GROUP"].dropna().unique()))
+if categoria != "Todo":
+    productos = productos[productos["SECONDARY GROUP"] == categoria]
+
+# Búsqueda
+busqueda = st.text_input("Buscar por nombre o código")
 if busqueda:
     productos = productos[
         productos["PRODUCTO_TAM"].str.contains(busqueda, case=False, na=False) |
         productos["PRODUCT ID"].astype(str).str.contains(busqueda)
     ]
 
-producto_seleccionado = st.selectbox(
-    "Elige un producto del catálogo",
-    productos["PRODUCTO_TAM"].tolist()
-)
+# Desplegable de productos filtrado
+producto_seleccionado = st.selectbox("Elige un producto del catálogo", productos["PRODUCTO_TAM"].tolist())
 
 if producto_seleccionado:
     st.subheader("2️⃣ Personaliza tu producto")
