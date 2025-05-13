@@ -10,7 +10,6 @@ def cargar_datos():
 
 df_pvp, df_detalle = cargar_datos()
 
-# Inicializar carrito
 if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 
@@ -45,11 +44,11 @@ if producto_seleccionado:
     st.markdown(f"**Precio base:** ${precio_base}")
     st.markdown(f"**Tamaño:** {size}")
 
-    # Ingredientes por defecto (si los hay)
+    # Ingredientes por defecto
     ingredientes_defecto = df_detalle[
-        (df_detalle["PRODUCT ID"] == cod_producto) &
-        (df_detalle["DEFAULT CONFIGURATION"] == "Included by default")
-    ]["INGREDIENTS"].dropna().unique()
+        (df_detalle["Clv. producto Compuesto"] == cod_producto) &
+        (df_detalle["Producto simple"].notna())
+    ]["Producto simple"].dropna().unique()
 
     if len(ingredientes_defecto):
         st.markdown("**Ingredientes por defecto:**")
@@ -57,22 +56,6 @@ if producto_seleccionado:
             st.markdown(f"- {i}")
     else:
         st.info("Este producto no tiene ingredientes configurables.")
-
-    # Opcionales (por ahora sólo bordes y base como ejemplo)
-    ingredientes_extra = df_detalle[
-        (df_detalle["PRODUCT ID"] == cod_producto) &
-        (df_detalle["DEFAULT CONFIGURATION"] != "Included by default")
-    ]
-
-    opciones_masa = ingredientes_extra[ingredientes_extra["INGREDIENTS GROUP"] == "MASA"]
-    masa_elegida = None
-    if not opciones_masa.empty:
-        masa_elegida = st.selectbox("Elige tipo de masa", opciones_masa["INGREDIENTS"].unique())
-
-    opciones_base = ingredientes_extra[ingredientes_extra["INGREDIENTS GROUP"] == "QUESO"]
-    base_elegida = None
-    if not opciones_base.empty:
-        base_elegida = st.selectbox("Queso en la base", opciones_base["INGREDIENTS"].unique())
 
     # Paso 3: Confirmación
     st.subheader("3️⃣ Confirmación")
@@ -83,9 +66,7 @@ if producto_seleccionado:
             "nombre": producto_seleccionado,
             "tamaño": size,
             "precio": precio_base,
-            "cantidad": cantidad,
-            "masa": masa_elegida,
-            "queso": base_elegida
+            "cantidad": cantidad
         }
         st.session_state["carrito"].append(item)
         st.success(f"{cantidad} x {producto_seleccionado} añadido al carrito")
@@ -98,8 +79,6 @@ if st.session_state["carrito"]:
         subtotal = item["precio"] * item["cantidad"]
         total += subtotal
         texto = f"{item['cantidad']} x {item['codigo']} - {item['nombre']} ({item['tamaño']}) = ${subtotal:.2f}"
-        if item.get("masa"): texto += f" | Masa: {item['masa']}"
-        if item.get("queso"): texto += f" | Queso: {item['queso']}"
         st.sidebar.markdown(texto)
     st.sidebar.markdown(f"**Total: ${total:.2f}**")
     if st.sidebar.button("🧹 Vaciar carrito"):
