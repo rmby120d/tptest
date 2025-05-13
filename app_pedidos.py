@@ -6,35 +6,43 @@ import pandas as pd
 @st.cache_data
 def cargar_datos():
     file = "catalogo_productos.xlsx"
-    pvp_simples = pd.read_excel(file, sheet_name="PVP Simples")
-    activos = pvp_simples[pvp_simples["Estado.1"] == "Activo 281"]
-    return activos
+    return pd.read_excel(file, sheet_name="PVP Simples")
 
-productos = cargar_datos()
+df = cargar_datos()
+
+# Selección de tienda
+st.sidebar.title("Configuración")
+tienda = st.sidebar.radio("Selecciona la tienda", ["281", "394"])
+
+# Filtrar productos activos según tienda
+estado_col = "Estado.1" if tienda == "281" else "Estado"
+precio_col = f"DELIVERY PVP {tienda}"
+productos = df[df[estado_col] == f"Activo {tienda}"]
 
 # Inicializar carrito en session_state
 if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 
-# Título
-st.title("Calculadora de Pedidos - Pizzería")
+# Buscador por nombre o código
+busqueda = st.text_input("Buscar producto por nombre o código")
 
 # Selector de categoría
 categoria = st.selectbox("Selecciona la categoría", productos["SECONDARY GROUP"].dropna().unique())
-
-# Filtrar productos por categoría
 productos_categoria = productos[productos["SECONDARY GROUP"] == categoria]
 
-# Columnas fijas para legibilidad
-columna_codigo = "PRODUCT ID"
-columna_producto = "PRODUCT"
+# Aplicar filtro de búsqueda si hay texto
+if busqueda:
+    productos_categoria = productos_categoria[
+        productos_categoria["PRODUCT"].str.contains(busqueda, case=False, na=False) |
+        productos_categoria["PRODUCT ID"].astype(str).str.contains(busqueda)
+    ]
 
-# Mostrar lista de productos con botón de agregar
+# Mostrar productos
 st.subheader("Productos disponibles")
 for _, fila in productos_categoria.iterrows():
-    codigo = fila[columna_codigo]
-    nombre = fila[columna_producto]
-    precio = fila["DELIVERY PVP 281"]
+    codigo = fila["PRODUCT ID"]
+    nombre = fila["PRODUCT"]
+    precio = fila[precio_col]
     size = fila["SIZE"] if pd.notna(fila["SIZE"]) else "Tamaño único"
     key = f"{codigo}_{size}"
 
@@ -54,18 +62,17 @@ for _, fila in productos_categoria.iterrows():
             })
             st.success(f"Agregado: {cantidad} x {nombre} ({size})")
 
-# Mostrar resumen del carrito
-if st.session_state["carrito"]:
-    st.subheader("🛒 Carrito de Compras")
+# Mostrar carrito en sidebar
+with st.sidebar.expander("🛒 Ver Carrito", expanded=True):
     total = 0
-    for item in st.session_state["carrito"]:
-        subtotal = item["precio"] * item["cantidad"]
-        total += subtotal
-        st.write(f"{item['cantidad']} x {item['codigo']} - {item['nombre']} ({item['tamaño']}) = $ {subtotal:.2f}")
-    st.markdown(f"### Total: $ {total:.2f}")
-
-    if st.button("🧹 Vaciar carrito"):
-        st.session_state["carrito"] = []
-        st.experimental_rerun()
-else:
-    st.info("Tu carrito está vacío. Agrega productos para comenzar.")
+    if st.session_state["carrito"]:
+        for item in st.session_state["carrito"]:
+            subtotal = item["precio"] * item["cantidad"]
+            total += subtotal
+            st.markdown(f"- {item['cantidad']} x {item['codigo']} - {item['nombre']} ({item['tamaño']}) = $ {subtotal:.2f}")
+        st.markdown(f"**Total: $ {total:.2f}**")
+        if st.button("🧹 Vaciar carrito"):
+            st.session_state["carrito"] = []
+            st.experimental_rerun()
+    else:
+        st.info("Tu carrito está vacío.")
