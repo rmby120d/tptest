@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kawaii Jump ♡</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #FFE5F1 0%, #F0F8FF 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            width: 800px;
+            height: 400px;
+            background: linear-gradient(to bottom, #F8E8FF 0%, #FFF0F5 100%);
+            position: relative;
+            border-radius: 30px;
+            box-shadow: 0 20px 40px rgba(255, 182, 193, 0.3);
+            overflow: hidden;
+        }
+
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            background: #F5F5DC;
+            border-radius: 0 0 30px 30px;
+        }
+
+        .player {
+            position: absolute;
+            bottom: 60px;
+            left: 80px;
+            width: 40px;
+            height: 40px;
+            background: #FFB6C1;
+            border-radius: 50%;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.4);
+        }
+
+        .player::before {
+            content: '';
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #333;
+            border-radius: 50%;
+            top: 12px;
+            left: 11px;
+            box-shadow: 12px 0 0 #333;
+        }
+
+        .player::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 4px;
+            background: #FF69B4;
+            border-radius: 0 0 8px 8px;
+            top: 22px;
+            left: 16px;
+        }
+
+        .player.jumping {
+            bottom: 180px;
+            transform: rotate(10deg) scale(1.1);
+        }
+
+        .obstacle {
+            position: absolute;
+            bottom: 60px;
+            right: -40px;
+            width: 25px;
+            height: 50px;
+            background: #DDA0DD;
+            border-radius: 15px 15px 5px 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 15px rgba(221, 160, 221, 0.3);
+        }
+
+        .obstacle::before {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #333;
+            border-radius: 50%;
+            top: 15px;
+            left: 7px;
+            box-shadow: 8px 0 0 #333, 4px 6px 0 #FF69B4;
+        }
+
+        @keyframes moveLeft {
+            from { right: -50px; }
+            to { right: 850px; }
+        }
+
+        .obstacle-slow {
+            animation: moveLeft 4s linear infinite;
+        }
+
+        .obstacle-normal {
+            animation: moveLeft 3s linear infinite;
+        }
+
+        .obstacle-fast {
+            animation: moveLeft 2s linear infinite;
+        }
+
+        .obstacle-super-fast {
+            animation: moveLeft 1.5s linear infinite;
+        }
+
+        .player.running {
+            animation: playerRun 0.3s ease-in-out infinite alternate;
+        }
+
+        @keyframes playerRun {
+            0% { transform: translateX(0px) scale(1); }
+            100% { transform: translateX(3px) scale(1.05); }
+        }
+
+        .cloud {
+            position: absolute;
+            width: 50px;
+            height: 25px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 25px;
+            animation: moveLeftSlow 10s linear infinite;
+        }
+
+        .cloud::before,
+        .cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+        }
+
+        .cloud::before {
+            width: 25px;
+            height: 25px;
+            top: -10px;
+            left: 8px;
+        }
+
+        .cloud::after {
+            width: 30px;
+            height: 20px;
+            top: -8px;
+            right: 8px;
+        }
+
+        .cloud1 {
+            top: 60px;
+            right: -60px;
+        }
+
+        .cloud2 {
+            top: 100px;
+            right: -60px;
+            animation-delay: -5s;
+            opacity: 0.6;
+        }
+
+        .cloud3 {
+            top: 40px;
+            right: -60px;
+            animation-delay: -8s;
+            opacity: 0.4;
+        }
+
+        @keyframes moveLeftSlow {
+            from { right: -80px; }
+            to { right: 880px; }
+        }
+
+        .score {
+            position: absolute;
+            top: 25px;
+            right: 30px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #8B4B8C;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.2);
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.98);
+            padding: 40px;
+            border-radius: 25px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(255, 182, 193, 0.3);
+            display: none;
+            z-index: 100;
+            border: 2px solid #FFB6C1;
+        }
+
+        .game-over h2 {
+            color: #FF69B4;
+            margin-bottom: 15px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .game-over p {
+            color: #8B4B8C;
+            margin-bottom: 15px;
+            font-size: 16px;
+            font-weight: 400;
+        }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #FFB6C1, #FF69B4);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.4);
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(255, 182, 193, 0.5);
+        }
+
+        .speed-indicator {
+            position: absolute;
+            top: 70px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #8B4B8C;
+            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.2);
+        }
+
+        .boost-indicator {
+            position: absolute;
+            top: 110px;
+            right: 30px;
+            background: rgba(255, 215, 0, 0.9);
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #8B4B8C;
+            box-shadow: 0 8px 20px rgba(255, 215, 0, 0.3);
+            display: none;
+            animation: pulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+
+        .heart {
+            position: absolute;
+            color: #FF69B4;
+            font-size: 12px;
+            animation: float 3s ease-in-out infinite;
+            opacity: 0.7;
+        }
+
+        .heart1 {
+            top: 80px;
+            left: 200px;
+            animation-delay: 0s;
+        }
+
+        .heart2 {
+            top: 120px;
+            left: 400px;
+            animation-delay: 1s;
+        }
+
+        .heart3 {
+            top: 90px;
+            left: 600px;
+            animation-delay: 2s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .title {
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: 700;
+            color: #FF69B4;
+            text-shadow: 0 2px 4px rgba(255, 182, 193, 0.3);
+        }
+
+        .sparkle {
+            position: absolute;
+            color: #FFD700;
+            font-size: 8px;
+            animation: sparkle 2s ease-in-out infinite;
+        }
+
+        .sparkle1 {
+            top: 50px;
+            left: 150px;
+            animation-delay: 0s;
+        }
+
+        .sparkle2 {
+            top: 140px;
+            left: 350px;
+            animation-delay: 0.7s;
+        }
+
+        .instructions {
+            position: absolute;
+            top: 25px;
+            left: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px 18px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #8B4B8C;
+            font-weight: 500;
+            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.2);
+        }
+
+        @keyframes sparkle {
+            0%, 100% { opacity: 0; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="title">Kawaii Jump ♡</div>
+        
+        <div class="cloud cloud1"></div>
+        <div class="cloud cloud2"></div>
+        <div class="cloud cloud3"></div>
+        
+        <div class="heart heart1">♡</div>
+        <div class="heart heart2">♡</div>
+        <div class="heart heart3">♡</div>
+        
+        <div class="sparkle sparkle1">✦</div>
+        <div class="sparkle sparkle2">✦</div>
+        <div class="sparkle sparkle3">✦</div>
+        
+        <div class="ground"></div>
+        <div class="player" id="player"></div>
+        
+        <div class="score">♡ <span id="score">0</span></div>
+        <div class="speed-indicator">Velocidad: <span id="speedLevel">1</span></div>
+        <div class="boost-indicator" id="boostIndicator">¡TURBO! ⚡</div>
+        <div class="instructions">ESPACIO: Saltar | →: Turbo</div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>¡Aww! (´｡• ᵕ •｡`) ♡</h2>
+            <p>¡Lograste <span id="finalScore">0</span> puntos!</p>
+            <p>¡Eres súper kawaii! ♡</p>
+            <button class="restart-btn" onclick="restartGame()">♡ Jugar Otra Vez ♡</button>
+        </div>
+    </div>
+
+    <script>
+        let gameState = {
+            isGameOver: false,
+            score: 0,
+            obstacles: [],
+            isJumping: false,
+            gameSpeed: 1,
+            isBoosting: false,
+            baseObstacleInterval: 2500,
+            currentObstacleInterval: 2500
+        };
+
+        const player = document.getElementById('player');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const speedLevelElement = document.getElementById('speedLevel');
+        const boostIndicator = document.getElementById('boostIndicator');
+
+        // Controles del juego
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp') {
+                e.preventDefault();
+                jump();
+            }
+            if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                startBoost();
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                stopBoost();
+            }
+        });
+
+        // Click para saltar
+        document.addEventListener('click', function(e) {
+            if (!e.target.classList.contains('restart-btn')) {
+                jump();
+            }
+        });
+
+        // Touch para móviles
+        document.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            jump();
+        });
+
+        function jump() {
+            if (!gameState.isJumping && !gameState.isGameOver) {
+                gameState.isJumping = true;
+                player.classList.add('jumping');
+                
+                setTimeout(() => {
+                    player.classList.remove('jumping');
+                    gameState.isJumping = false;
+                }, 600);
+            }
+        }
+
+        function startBoost() {
+            if (!gameState.isGameOver && !gameState.isBoosting) {
+                gameState.isBoosting = true;
+                player.classList.add('running');
+                boostIndicator.style.display = 'block';
+            }
+        }
+
+        function stopBoost() {
+            gameState.isBoosting = false;
+            player.classList.remove('running');
+            boostIndicator.style.display = 'none';
+        }
+
+        function updateGameSpeed() {
+            const newSpeed = Math.floor(gameState.score / 50) + 1;
+            if (newSpeed !== gameState.gameSpeed) {
+                gameState.gameSpeed = Math.min(newSpeed, 4); // Máximo nivel 4
+                speedLevelElement.textContent = gameState.gameSpeed;
+                
+                // Actualizar intervalo de obstáculos según velocidad
+                gameState.currentObstacleInterval = Math.max(
+                    gameState.baseObstacleInterval - (gameState.gameSpeed - 1) * 400,
+                    1000
+                );
+            }
+        }
+
+        function getObstacleSpeedClass() {
+            let speedClass = 'obstacle-normal';
+            
+            if (gameState.gameSpeed === 1) speedClass = 'obstacle-slow';
+            else if (gameState.gameSpeed === 2) speedClass = 'obstacle-normal';
+            else if (gameState.gameSpeed === 3) speedClass = 'obstacle-fast';
+            else if (gameState.gameSpeed >= 4) speedClass = 'obstacle-super-fast';
+            
+            return speedClass;
+        }
+
+        function createObstacle() {
+            if (gameState.isGameOver) return;
+            
+            const obstacle = document.createElement('div');
+            obstacle.className = `obstacle ${getObstacleSpeedClass()}`;
+            document.querySelector('.game-container').appendChild(obstacle);
+            
+            gameState.obstacles.push({
+                element: obstacle,
+                x: -50
+            });
+
+            // Tiempo de eliminación basado en velocidad
+            const removeTime = gameState.gameSpeed >= 4 ? 1500 : 
+                              gameState.gameSpeed >= 3 ? 2000 : 
+                              gameState.gameSpeed >= 2 ? 3000 : 4000;
+
+            setTimeout(() => {
+                if (obstacle.parentNode) {
+                    obstacle.parentNode.removeChild(obstacle);
+                }
+                gameState.obstacles = gameState.obstacles.filter(obs => obs.element !== obstacle);
+            }, removeTime);
+        }
+
+        function checkCollision() {
+            gameState.obstacles.forEach(obstacle => {
+                const obstacleRect = obstacle.element.getBoundingClientRect();
+                const playerRect = player.getBoundingClientRect();
+                
+                if (obstacleRect.left < playerRect.right - 5 &&
+                    obstacleRect.right > playerRect.left + 5 &&
+                    obstacleRect.top < playerRect.bottom - 5 &&
+                    obstacleRect.bottom > playerRect.top + 5) {
+                    gameOver();
+                }
+            });
+        }
+
+        function updateScore() {
+            if (!gameState.isGameOver) {
+                // Puntaje base + bonus por boost + bonus por velocidad
+                let scoreIncrease = 1;
+                if (gameState.isBoosting) scoreIncrease += 1;
+                scoreIncrease += Math.floor(gameState.gameSpeed / 2);
+                
+                gameState.score += scoreIncrease;
+                scoreElement.textContent = gameState.score;
+                
+                // Actualizar velocidad del juego
+                updateGameSpeed();
+            }
+        }
+
+        function gameOver() {
+            gameState.isGameOver = true;
+            finalScoreElement.textContent = gameState.score;
+            gameOverScreen.style.display = 'block';
+            
+            const obstacles = document.querySelectorAll('.obstacle');
+            obstacles.forEach(obstacle => {
+                obstacle.style.animationPlayState = 'paused';
+            });
+        }
+
+        function restartGame() {
+            // Resetear estado del juego
+            gameState.isGameOver = false;
+            gameState.score = 0;
+            gameState.obstacles = [];
+            gameState.isJumping = false;
+            gameState.gameSpeed = 1;
+            gameState.isBoosting = false;
+            gameState.currentObstacleInterval = gameState.baseObstacleInterval;
+            
+            // Resetear UI
+            scoreElement.textContent = '0';
+            speedLevelElement.textContent = '1';
+            gameOverScreen.style.display = 'none';
+            boostIndicator.style.display = 'none';
+            player.classList.remove('jumping', 'running');
+            
+            // Eliminar obstáculos existentes
+            const obstacles = document.querySelectorAll('.obstacle');
+            obstacles.forEach(obstacle => {
+                if (obstacle.parentNode) {
+                    obstacle.parentNode.removeChild(obstacle);
+                }
+            });
+            
+            startGame();
+        }
+
+        function startGame() {
+            let obstacleIntervalId;
+            
+            function createObstacleWithDelay() {
+                createObstacle();
+                // Programar el próximo obstáculo con intervalo dinámico
+                obstacleIntervalId = setTimeout(createObstacleWithDelay, 
+                    gameState.currentObstacleInterval + Math.random() * 1000);
+            }
+            
+            // Iniciar creación de obstáculos
+            createObstacleWithDelay();
+
+            const gameLoop = setInterval(() => {
+                if (gameState.isGameOver) {
+                    clearInterval(gameLoop);
+                    clearTimeout(obstacleIntervalId);
+                    return;
+                }
+                
+                checkCollision();
+                updateScore();
+            }, 50);
+        }
+
+        window.addEventListener('load', () => {
+            startGame();
+        });
+
+        window.addEventListener('keydown', function(e) {
+            if(e.keyCode === 32 && e.target === document.body) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
