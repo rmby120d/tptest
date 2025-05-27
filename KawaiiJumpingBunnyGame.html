@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Conejito Kawaii Salta Dulces</title>
+  <meta name="viewport" content="width=700">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(to top, #ffe8f4 60%, #c8f7fa 100%);
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      border-radius: 24px;
+      box-shadow: 0 0 40px #f5b7d6aa, 0 8px 40px #fff7fa;
+      background: #fff8fc;
+      display: block;
+    }
+    #info {
+      position: absolute;
+      top: 12px; left: 50%; transform: translateX(-50%);
+      background: #ffffffcc;
+      border-radius: 12px;
+      padding: 8px 22px;
+      font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', Arial, sans-serif;
+      font-size: 1.1em;
+      color: #ae6ac9;
+      z-index: 2;
+      box-shadow: 0 2px 16px #d0c3eb44;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">Presiona ESPACIO o toca para saltar. ¡Evita los caramelos! Usa la flecha → para correr más rápido.</div>
+  <canvas id="game" width="680" height="320"></canvas>
+  <script>
+    // Sonidos
+    const soundJump = new Audio('data:audio/wav;base64,UklGRjgAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYAAADhY+Do3vxkAAAIxAAAAkP+QgAQAAAAAA==');
+    const soundCrash = new Audio('data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAAIcAAADsAAD+DwAARb4AAACAAA==');
+    const soundBonus = new Audio('data:audio/wav;base64,UklGRgwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZAAAP//AAD/AACgAAD//wAAAP//AAD/AAD/AAD//wAA');
+
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const GROUND_Y = 250;
+
+    let gameOver = false, score = 0, best = 0, newRecord = false, newRecordAnim = 0;
+    let frame = 0, accelerating = false;
+    let bunnyBonus = null, bunnyBonusTime = 0, bunnyShield = false;
+    let bonusAnim = 0;
+    let motivationalPhrases = [
+      "¡Puedes mejorar tu récord!",
+      "¡Sigue saltando, campeón!",
+      "¡Eres un conejito imparable!",
+      "¡Kawaii power! ¡No te rindas!",
+      "¡La práctica hace al maestro!"
+    ];
+    let finalMessage = "";
+
+    const bunny = {
+      x: 60,
+      y: GROUND_Y,
+      vy: 0,
+      w: 46,
+      h: 50,
+      jumping: false,
+      gravity: 0.8,
+      jumpPower: 13,
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.globalAlpha = 0.21;
+        ctx.beginPath();
+        ctx.ellipse(0, 45, 17, 7, 0, 0, 2 * Math.PI);
+        ctx.fillStyle = "#be7dbc";
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 14, 18, 20, 0, 0, 2 * Math.PI);
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = "#f7e0fa";
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.ellipse(-12, -24, 8, 24, -0.15, 0, 2 * Math.PI);
+        ctx.ellipse(12, -24, 8, 24, 0.15, 0, 2 * Math.PI);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-12, -24, 4, 15, -0.12, 0, 2 * Math.PI);
+        ctx.ellipse(12, -24, 4, 15, 0.12, 0, 2 * Math.PI);
+        ctx.fillStyle = "#ffd8f6";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-6, 3, 2.4, 0, 2 * Math.PI);
+        ctx.arc(6, 3, 2.4, 0, 2 * Math.PI);
+        ctx.fillStyle = "#9155a4";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-9, 8, 2, 0, 2 * Math.PI);
+        ctx.arc(9, 8, 2, 0, 2 * Math.PI);
+        ctx.fillStyle = "#ffd7e7";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 7, 1.2, 0, Math.PI*2);
+        ctx.moveTo(-1, 8.5);
+        ctx.quadraticCurveTo(0, 10.5, 1, 8.5);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#e381b4";
+        ctx.stroke();
+        if (bunnyShield) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(0, 18, 27 + Math.sin(frame/5)*2, 0, 2*Math.PI);
+          ctx.strokeStyle = "#9df7fa";
+          ctx.lineWidth = 4.5;
+          ctx.globalAlpha = 0.5 + 0.2*Math.sin(frame/3);
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = "#3be4ff";
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+    };
+
+    // Bonus types
+    const BONUS_TYPES = [
+      {
+        name: "Salto alto",
+        color: "#7af8d1",
+        effect: () => { bunnyBonus = "salto"; bunnyBonusTime = 400; bunny.jumpPower = 20; },
+        icon: (x, y) => {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.globalAlpha = 0.92 + 0.08*Math.sin(bonusAnim/10);
+          ctx.rotate(Math.sin(bonusAnim/8)*0.1);
+          ctx.beginPath();
+          ctx.moveTo(-8,0); ctx.bezierCurveTo(-18,-7,-18,12,0,8);
+          ctx.moveTo(8,0); ctx.bezierCurveTo(18,-7,18,12,0,8);
+          ctx.lineWidth = 2.5; ctx.strokeStyle = "#52f2a7"; ctx.stroke();
+          ctx.restore();
+        }
+      },
+      {
+        name: "Escudo",
+        color: "#8ae4fc",
+        effect: () => { bunnyShield = true; bunnyBonus = "escudo"; bunnyBonusTime = 400; },
+        icon: (x, y) => {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.globalAlpha = 0.87 + 0.1*Math.cos(bonusAnim/9);
+          ctx.beginPath();
+          ctx.moveTo(0,-10); ctx.quadraticCurveTo(9,4,0,14); ctx.quadraticCurveTo(-9,4,0,-10);
+          ctx.lineWidth = 2.2; ctx.strokeStyle = "#32e0ff"; ctx.stroke();
+          ctx.restore();
+        }
+      }
+    ];
+
+    // Obstacles and bonuses arrays
+    let obstacles = [];
+    let bonuses = [];
+
+    function randomCandyType() {
+      const types = [
+        "lollipop", "cookie", "cupcake", "gummy", "candycane", "jellybean", "donut"
+      ];
+      return types[Math.floor(Math.random()*types.length)];
+    }
+
+    function drawCandy(x, y, type) {
+      ctx.save();
+      ctx.translate(x, y);
+      switch (type) {
+        case "lollipop":
+          ctx.beginPath();
+          ctx.moveTo(0, 12); ctx.lineTo(0, 28);
+          ctx.lineWidth = 4; ctx.strokeStyle = "#ffe6f1";
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(0, 10, 12, 0, 2*Math.PI);
+          ctx.fillStyle = "#ff98e6";
+          ctx.shadowColor = "#fff3fa";
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          for(let t=0;t<7;t+=0.4) {
+            ctx.lineTo(Math.cos(t)*t*1.6, 10+Math.sin(t)*t*1.6);
+          }
+          ctx.lineWidth = 2; ctx.strokeStyle = "#fff";
+          ctx.stroke();
+          break;
+        case "cookie":
+          ctx.beginPath();
+          ctx.arc(0, 18, 16, 0, 2*Math.PI);
+          ctx.fillStyle = "#ffebbb";
+          ctx.shadowColor = "#ffe9b2";
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#deab6a";
+          for(let i=0; i<7; i++) {
+            ctx.beginPath();
+            ctx.arc(Math.random()*20-10, Math.random()*16+10, 2, 0, 2*Math.PI);
+            ctx.fill();
+          }
+          break;
+        case "cupcake":
+          ctx.beginPath();
+          ctx.moveTo(-11, 22);
+          ctx.lineTo(11, 22);
+          ctx.lineTo(7, 35);
+          ctx.lineTo(-7, 35);
+          ctx.closePath();
+          ctx.fillStyle = "#fbd0ec";
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(0, 18, 12, Math.PI, 2*Math.PI);
+          ctx.lineTo(12, 18); ctx.arc(0, 18, 12, 0, Math.PI, true);
+          ctx.closePath();
+          ctx.fillStyle = "#fff6fc";
+          ctx.shadowColor = "#ffd5f7";
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.arc(0, 9, 2, 0, 2*Math.PI);
+          ctx.fillStyle = "#ff5b9b";
+          ctx.fill();
+          break;
+        case "gummy":
+          ctx.beginPath();
+          ctx.ellipse(0, 22, 10, 16, 0, 0, 2*Math.PI);
+          ctx.fillStyle = "#a8e0fe";
+          ctx.shadowColor = "#e0fbff";
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          break;
+        case "candycane":
+          ctx.save();
+          ctx.rotate(Math.PI/6);
+          ctx.beginPath();
+          ctx.moveTo(-12, 22);
+          ctx.arc(0, 12, 12, Math.PI, Math.PI*2, false);
+          ctx.lineWidth = 8;
+          ctx.strokeStyle = "#fff";
+          ctx.stroke();
+          ctx.lineWidth = 3.5;
+          ctx.strokeStyle = "#ff7bb9";
+          for(let i=0;i<8;i++) {
+            ctx.beginPath();
+            ctx.arc(0, 12, 12, Math.PI+0.22*i, Math.PI+0.22*i+0.11, false);
+            ctx.stroke();
+          }
+          ctx.restore();
+          break;
+        case "jellybean":
+          ctx.beginPath();
+          ctx.ellipse(0, 22, 12, 8, Math.PI/7, 0, 2*Math.PI);
+          ctx.fillStyle = "#ffe898";
+          ctx.shadowColor = "#fff2bb";
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          break;
+        case "donut":
+          ctx.beginPath();
+          ctx.arc(0, 22, 14, 0, 2*Math.PI);
+          ctx.fillStyle = "#fff8d8";
+          ctx.shadowColor = "#ffe5b3";
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.arc(0, 22, 10, 0, 2*Math.PI);
+          ctx.fillStyle = "#fb94e9";
+          ctx.fill();
+          for(let i=0;i<8;i++){
+            ctx.save();
+            ctx.rotate(i*0.8);
+            ctx.beginPath();
+            ctx.rect(6, 17, 2, 4);
+            ctx.fillStyle = ["#fff","#ffd700","#70e4fa","#c76cff","#fc9494"][i%5];
+            ctx.fill();
+            ctx.restore();
+          }
+          ctx.beginPath();
+          ctx.arc(0, 22, 4, 0, 2*Math.PI);
+          ctx.fillStyle = "#fff8d8";
+          ctx.fill();
+          break;
+      }
+      ctx.restore();
+    }
+
+    function drawBonus(x, y, type) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.beginPath();
+      ctx.arc(0, 0, 16+Math.sin(bonusAnim/8)*2, 0, 2*Math.PI);
+      ctx.fillStyle = type.color;
+      ctx.globalAlpha = 0.84 + 0.1*Math.sin(bonusAnim/10);
+      ctx.shadowColor = "#fff";
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.font = "bold 14px Comic Sans MS";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fff";
+      ctx.fillText(type.name.split(' ')[0], 0, 5);
+      ctx.restore();
+    }
+
+    function addObstacle() {
+      const type = randomCandyType();
+      obstacles.push({
+        x: canvas.width + 60,
+        y: GROUND_Y + 18,
+        w: 36, h: 38, type,
+        passed: false
+      });
+    }
+
+    function addBonus() {
+      if (Math.random() < 0.5) {
+        let idx = Math.floor(Math.random()*BONUS_TYPES.length);
+        bonuses.push({
+          x: canvas.width + 60,
+          y: GROUND_Y - 30 - Math.random()*40,
+          r: 16,
+          type: BONUS_TYPES[idx],
+          active: true
+        });
+      }
+    }
+
+    function drawCottonTree(x,y,c1,c2){
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x+6, y+22);
+      ctx.lineTo(x-6, y+22);
+      ctx.closePath();
+      ctx.fillStyle = "#ffcdf2";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, 2*Math.PI);
+      ctx.fillStyle = c1;
+      ctx.shadowColor = c2;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    function drawSmileCloud(x, y, r, color) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2*Math.PI);
+      ctx.arc(x+r, y, r*0.7, 0, 2*Math.PI);
+      ctx.arc(x-r, y, r*0.7, 0, 2*Math.PI);
+      ctx.arc(x, y+r*0.5, r*0.9, 0, 2*Math.PI);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.93;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y+6, 7, 0.1*Math.PI, 0.9*Math.PI);
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "#ef8ec9";
+      ctx.globalAlpha = 0.8;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBackground() {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      ctx.ellipse(180, 310, 120, 32, 0, 0, 2*Math.PI);
+      ctx.ellipse(400, 290, 96, 28, 0, 0, 2*Math.PI);
+      ctx.ellipse(580, 320, 92, 22, 0, 0, 2*Math.PI);
+      ctx.fillStyle = "#e6e8ff";
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      for(let r=0; r<5; r++) {
+        ctx.beginPath();
+        ctx.arc(600, 100, 30+6*r, Math.PI, 2*Math.PI);
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = ["#ffe066", "#ff97db", "#9ed8fd", "#d8a5ff", "#ffab81"][r];
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      drawCottonTree(70,220,"#ffe1fc","#f7c2ee");
+      drawCottonTree(540,240,"#c9fff6","#a6f2da");
+      
+        drawSmileCloud(190,90,22,"#fff");
+drawSmileCloud(350,60,28,"#ffeefc");
+drawSmileCloud(590,40,18,"#fff");
+ctx.save();
+for(let s=0; s<6; s++) {
+  let x = 60 + s*100, y = 30 + Math.random()*30;
+  ctx.beginPath();
+  ctx.arc(x, y, 3, 0, 2*Math.PI);
+  ctx.fillStyle = "#ffe5b3";
+  ctx.globalAlpha = 0.85;
+  ctx.fill();
+}
+ctx.restore();
+}
+
+function resetGame() {
+  score = 0; gameOver = false; newRecord = false;
+  bunny.y = GROUND_Y; bunny.vy = 0; bunny.jumping = false;
+  bunny.jumpPower = 13; bunnyBonus = null; bunnyShield = false;
+  obstacles = []; bonuses = [];
+  frame = 0; newRecordAnim = 0;
+  finalMessage = motivationalPhrases[Math.floor(Math.random()*motivationalPhrases.length)];
+}
+
+function jump() {
+  if (!bunny.jumping && !gameOver) {
+    bunny.vy = -bunny.jumpPower;
+    bunny.jumping = true;
+    soundJump.currentTime = 0; soundJump.play();
+  }
+  if(gameOver) { resetGame(); }
+}
+
+// Entrada de teclas
+document.addEventListener('keydown', e => {
+  if(e.code==="Space"||e.key===" "||e.key==="ArrowUp") { jump(); }
+  if(e.code==="ArrowRight") accelerating = true;
+});
+document.addEventListener('keyup', e => {
+  if(e.code==="ArrowRight") accelerating = false;
+});
+canvas.addEventListener('touchstart', jump);
+
+function update() {
+  frame++; bonusAnim++;
+  if (bunnyBonusTime > 0) bunnyBonusTime--;
+  if (bunnyBonusTime <= 0 && bunnyBonus) {
+    bunny.jumpPower = 13; bunnyBonus = null; bunnyShield = false;
+  }
+
+  bunny.y += bunny.vy;
+  bunny.vy += bunny.gravity;
+
+  if (bunny.y >= GROUND_Y) {
+    bunny.y = GROUND_Y; bunny.vy = 0; bunny.jumping = false;
+  }
+
+  // Añadir obstáculos y bonus
+  let vel = 4 + Math.floor(score/8) + (accelerating ? 2 : 0);
+  if(frame % (accelerating ? 68 : 86) === 0) addObstacle();
+  if(frame % 270 === 0 && Math.random()<0.5) addBonus();
+
+  obstacles.forEach(obs=>{ obs.x -= vel; });
+  obstacles = obstacles.filter(obs=>obs.x > -60);
+  bonuses.forEach(bon=>{ bon.x -= vel; });
+  bonuses = bonuses.filter(bon=>bon.x > -40 && bon.active);
+
+  // Colisiones
+  for(let obs of obstacles){
+    if(!obs.passed && obs.x+bunny.w/2 > bunny.x-bunny.w/2){
+      if(
+        obs.x < bunny.x+bunny.w/2 &&
+        obs.x+obs.w > bunny.x-bunny.w/2 &&
+        bunny.y+bunny.h-20 > obs.y &&
+        bunny.y < obs.y+obs.h-6
+      ){
+        if (bunnyShield) {
+          bunnyShield = false;
+          soundBonus.currentTime=0; soundBonus.play();
+          obs.passed = true; score++; // cuenta como superado
+        } else {
+          soundCrash.currentTime = 0;
+          soundCrash.play();
+          gameOver = true;
+          if(score > best){
+            best = score; newRecord = true; newRecordAnim = 50;
+          }
+        }
+      }
+    }
+    if(!obs.passed && obs.x+bunny.w/2 < bunny.x-bunny.w/2) {
+      obs.passed = true; score++;
+    }
+  }
+
+  // Bonus
+  for(let bon of bonuses){
+    if(bon.active && Math.abs(bon.x-bunny.x)<24 && Math.abs(bon.y-bunny.y)<36){
+      bon.active = false; soundBonus.currentTime=0; soundBonus.play();
+      bon.type.effect();
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  drawBackground();
+
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y + 32);
+  ctx.lineTo(canvas.width, GROUND_Y + 32);
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = "#ffe6fc";
+  ctx.stroke();
+
+  obstacles.forEach(obs=>{
+    drawCandy(obs.x, obs.y-20, obs.type);
+  });
+
+  bonuses.forEach(bon=>{
+    if(bon.active) drawBonus(bon.x, bon.y, bon.type);
+  });
+
+  bunny.draw();
+
+  // Power-up indicador
+  if(bunnyBonus){
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    ctx.font = "bold 20px Comic Sans MS";
+    ctx.fillStyle = bunnyBonus==="salto"?"#0ac":"#17c";
+    ctx.fillText(bunnyBonus==="salto"?"Salto Alto":"Escudo", 500, 42);
+    if(bunnyBonus==="salto") BONUS_TYPES[0].icon(560,44);
+    else BONUS_TYPES[1].icon(550,44);
+    ctx.restore();
+  }
+
+  // Score y récord
+  ctx.save();
+  ctx.font = 'bold 22px Arial Rounded MT Bold, Comic Sans MS';
+  ctx.fillStyle = "#e481ff";
+  ctx.shadowColor = "#fff";
+  ctx.shadowBlur = 8;
+  ctx.fillText("Puntaje: " + score, 24, 36);
+  if(best>0) ctx.fillText("Mejor: " + best, 24, 66);
+  ctx.restore();
+
+  // Nuevo récord
+  if(newRecordAnim>0){
+    ctx.save();
+    ctx.globalAlpha = 0.7 + 0.3*Math.sin(newRecordAnim/2);
+    ctx.font = "bold 30px Comic Sans MS";
+    ctx.fillStyle = "#ffe070";
+    ctx.shadowColor = "#f6a";
+    ctx.shadowBlur = 14;
+    ctx.textAlign = "center";
+    ctx.fillText("¡Nuevo récord mundial!", 340, 100);
+    ctx.restore();
+    newRecordAnim--;
+  }
+
+  // Game Over Pantalla Final
+  if(gameOver){
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#fff4fc";
+    ctx.fillRect(90,60,500,180);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle="#fbc9fa"; ctx.lineWidth=4;
+    ctx.strokeRect(90,60,500,180);
+    ctx.font = 'bold 36px Comic Sans MS, Arial Rounded MT Bold';
+    ctx.fillStyle = "#ff81be";
+    ctx.textAlign = "center";
+    ctx.fillText("¡Fin del juego!", 340, 112);
+    ctx.font = 'bold 22px Comic Sans MS';
+    ctx.fillStyle = "#b393d3";
+    ctx.fillText("Puntaje: "+score, 340, 150);
+    ctx.fillStyle = "#ffc74d";
+    ctx.fillText("Récord: "+best, 340, 178);
+    ctx.font = 'italic 18px Comic Sans MS';
+    ctx.fillStyle = "#ac69f2";
+    ctx.fillText(finalMessage, 340, 207);
+    ctx.font = "bold 17px Comic Sans MS";
+    ctx.fillStyle = "#ff7fa1";
+    ctx.fillText("Presiona espacio o toca para jugar de nuevo", 340, 237);
+    ctx.restore();
+  }
+}
+
+function loop() {
+  if(!gameOver) update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Inicia el juego
+resetGame();
+loop();
+  </script>
+</body>
+</html>
