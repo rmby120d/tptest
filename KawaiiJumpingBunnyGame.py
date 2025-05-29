@@ -6,9 +6,9 @@ with open("KawaiiJumpingBunnyGame.html", "r", encoding="utf-8") as f:
 
 st.set_page_config(page_title="Conejito Kawaii Salta Chupes", layout="wide")
 
-st.title("🐰 Conejito Kawaii Salta Dulces")
+st.title("🐰 Conejito 🌈 Kawaii Salta 🍭 Chupes ")
 st.markdown(
-    "Disfruta y no comas muchas chupes."
+    "Disfruta y no comas muchas chupes 🍬 🍭 🍪."
 )
 
 # Incrusta el HTML con JS (el juego se juega en la web, no en Python)
