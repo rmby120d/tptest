@@ -1,8 +1,9 @@
 import streamlit as st
 
-# ————————————————————————————————————————————————————————————
-# 1) Función para inyectar Google Analytics vía st.markdown
-# ————————————————————————————————————————————————————————————
+# 1) ¡Esta tiene que ser la PRIMERA llamada a Streamlit!
+st.set_page_config(page_title="Conejito Kawaii Salta Chupes", layout="wide")
+
+# 2) Ahora ya podemos inyectar GA sin problemas
 def inject_ga(measurement_id: str):
     st.markdown(
         f"""
@@ -18,22 +19,13 @@ def inject_ga(measurement_id: str):
         unsafe_allow_html=True,
     )
 
-# 2) Aquí pones tu ID de GA4
 inject_ga("G-2F5LTZX5R4")
 
-# ————————————————————————————————————————————————————————————
-# 3) Tu código original de Streamlit
-# ————————————————————————————————————————————————————————————
-# Leer el HTML de tu juego
+# 3) Resto de tu app
 with open("KawaiiJumpingBunnyGame.html", "r", encoding="utf-8") as f:
     html_code = f.read()
 
-st.set_page_config(page_title="Conejito Kawaii Salta Chupes", layout="wide")
-
 st.title("🐰 Conejito 🌈 Kawaii Salta 🍭 Chupes ")
-st.markdown(
-    "Disfruta y no comas muchas chupes 🍭 🐰 🍪."
-)
+st.markdown("Disfruta y no comas muchas chupes 🍭 🐰 🍪.")
 
-# Incrusta el HTML con JS (el juego se juega en la web, no en Python)
 st.components.v1.html(html_code, height=380, scrolling=False)
