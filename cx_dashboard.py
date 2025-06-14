@@ -1,10 +1,13 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+
+# Color corporativo
+global COLOR_CORP
+COLOR_CORP = "#6d84e3"
 
 # Configuración de la página
 st.set_page_config(page_title="Evaluación Calidad Llamadas (Simulación)", layout="wide")
@@ -26,8 +29,12 @@ pct_no = (df_eval['Respuestas'] == 'No').mean() * 100
 pct_na = (df_eval['Respuestas'] == 'No aplica').mean() * 100
 
 # Cumplimiento por Bloque e Ítem
-block_comp = df_eval.groupby('Bloque')    .apply(lambda x: (x['Respuestas'] == 'Sí').mean() * 100)    .reset_index(name='Cumplimiento (%)')
-item_comp = df_eval.groupby('Ítem')    .apply(lambda x: (x['Respuestas'] == 'Sí').mean() * 100)    .reset_index(name='Cumplimiento (%)')
+block_comp = df_eval.groupby('Bloque').apply(
+    lambda x: (x['Respuestas'] == 'Sí').mean() * 100
+).reset_index(name='Cumplimiento (%)')
+item_comp = df_eval.groupby('Ítem').apply(
+    lambda x: (x['Respuestas'] == 'Sí').mean() * 100
+).reset_index(name='Cumplimiento (%)')
 
 # Crear pestañas
 tabs = st.tabs(["Visión General", "Detalle", "Tópicos", "Insights", "Heatmap"])
@@ -40,25 +47,32 @@ with tabs[0]:
     c2.metric("Tasa No", f"{pct_no:.1f}%")
     c3.metric("Tasa No aplica", f"{pct_na:.1f}%")
     c4.empty()
+
     # Gauge cumplimiento global
     gauge = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pct_si,
         title={'text': "Cumplimiento Global (%)"},
-        gauge={'axis': {'range': [0, 100]},
-               'bar': {'color': "green"},
-               'steps': [
-                   {'range': [0, 60],  'color': "lightcoral"},
-                   {'range': [60, 80], 'color': "gold"},
-                   {'range': [80, 100],'color': "lightgreen"}
-               ]}
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'color': COLOR_CORP},
+            'steps': [
+                {'range': [0, 60],  'color': "lightcoral"},
+                {'range': [60, 80], 'color': "gold"},
+                {'range': [80, 100],'color': "lightgreen"}
+            ],
+        }
     ))
+    gauge.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color=COLOR_CORP)
     st.plotly_chart(gauge, use_container_width=True)
+
     # Radar cumplimiento por bloque
     bloques = block_comp['Bloque'].tolist()
     valores = block_comp['Cumplimiento (%)'].tolist()
     bloques.append(bloques[0]); valores.append(valores[0])
-    radar = go.Figure(go.Scatterpolar(r=valores, theta=bloques, fill='toself'))
+    radar = go.Figure(go.Scatterpolar(
+        r=valores, theta=bloques, fill='toself', marker_color=COLOR_CORP
+    ))
     radar.update_layout(polar=dict(radialaxis=dict(range=[0,100])), showlegend=False)
     st.plotly_chart(radar, use_container_width=True)
 
@@ -72,13 +86,19 @@ with tabs[2]:
     st.subheader("Frecuencia por Ítem")
     df_items = df_eval['Ítem'].value_counts().reset_index()
     df_items.columns = ['Ítem', 'Conteo']
-    fig_bar = px.bar(df_items, x='Ítem', y='Conteo', text='Conteo', title="Conteo por Ítem")
+    fig_bar = px.bar(
+        df_items, x='Ítem', y='Conteo', text='Conteo',
+        title="Conteo por Ítem",
+        color_discrete_sequence=[COLOR_CORP]
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
+
     st.subheader("Nube de Palabras")
     text = " ".join(df_eval['Ítem'].tolist())
-    wc = WordCloud(width=800, height=300).generate(text)
+    wc = WordCloud(width=800, height=300, background_color='white', colormap=None).generate(text)
     fig, ax = plt.subplots(figsize=(12,4))
-    ax.imshow(wc, interpolation='bilinear'); ax.axis('off')
+    ax.imshow(wc.recolor(color_func=lambda *args, **kwargs: COLOR_CORP), interpolation='bilinear')
+    ax.axis('off')
     st.pyplot(fig)
 
 # Insights
@@ -87,7 +107,7 @@ with tabs[3]:
     st.table(item_comp.nlargest(5, 'Cumplimiento (%)'))
     st.subheader("Top 5 Ítems con Menor Cumplimiento")
     st.table(item_comp.nsmallest(5, 'Cumplimiento (%)'))
-    # Gráfico Pareto de fallos ('No')
+    # Pareto
     st.subheader("Gráfico Pareto de Fallos por Ítem")
     df_no = df_eval[df_eval['Respuestas'] == 'No']
     counts = df_no['Ítem'].value_counts().reset_index()
@@ -95,12 +115,17 @@ with tabs[3]:
     counts = counts.sort_values('Fails', ascending=False)
     counts['CumPct'] = counts['Fails'].cumsum() / counts['Fails'].sum() * 100
     pareto = go.Figure()
-    pareto.add_trace(go.Bar(x=counts['Ítem'], y=counts['Fails'], name='Número de fallos'))
-    pareto.add_trace(go.Scatter(x=counts['Ítem'], y=counts['CumPct'], name='Pct. acumulado', yaxis='y2'))
+    pareto.add_trace(go.Bar(
+        x=counts['Ítem'], y=counts['Fails'], name='Número de fallos', marker_color=COLOR_CORP
+    ))
+    pareto.add_trace(go.Scatter(
+        x=counts['Ítem'], y=counts['CumPct'], name='Pct. acumulado', yaxis='y2', line_color=COLOR_CORP
+    ))
     pareto.update_layout(
         yaxis=dict(title='Número de fallos'),
         yaxis2=dict(title='Pct. acumulado', overlaying='y', side='right', range=[0,100]),
-        xaxis_tickangle=-45
+        xaxis_tickangle=-45,
+        plot_bgcolor='white'
     )
     st.plotly_chart(pareto, use_container_width=True)
 
@@ -115,12 +140,12 @@ with tabs[4]:
         heat_data,
         labels={'x': "Llamada", 'y': "Ítem", 'color': "Valor"},
         x=heat_data.columns, y=heat_data.index,
-        color_continuous_scale=["lightcoral","lightgray","lightgreen"],
+        color_continuous_scale=["lightcoral","lightgray",COLOR_CORP],
         aspect="auto",
         title="Heatmap de Cumplimiento"
     )
     st.plotly_chart(fig_heat, use_container_width=True)
 
-# Para ejecutar:
+# Ejecutar:
 # pip install streamlit pandas plotly wordcloud matplotlib
 # streamlit run cx_dashboard_sim.py
