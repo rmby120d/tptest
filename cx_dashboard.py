@@ -26,8 +26,8 @@ pct_no = (df_eval['Respuestas'] == 'No').mean() * 100
 pct_na = (df_eval['Respuestas'] == 'No aplica').mean() * 100
 
 # Cumplimiento por Bloque e Ítem
-block_comp = df_eval.groupby('Bloque').apply(lambda x: (x['Respuestas'] == 'Sí').mean() * 100).reset_index(name='Cumplimiento (%)')
-item_comp = df_eval.groupby('Ítem').apply(lambda x: (x['Respuestas'] == 'Sí').mean() * 100).reset_index(name='Cumplimiento (%)')
+block_comp = df_eval.groupby('Bloque')    .apply(lambda x: (x['Respuestas'] == 'Sí').mean() * 100)    .reset_index(name='Cumplimiento (%)')
+item_comp = df_eval.groupby('Ítem')    .apply(lambda x: (x['Respuestas'] == 'Sí').mean() * 100)    .reset_index(name='Cumplimiento (%)')
 
 # Crear pestañas
 tabs = st.tabs(["Visión General", "Detalle", "Tópicos", "Insights", "Heatmap"])
@@ -40,7 +40,6 @@ with tabs[0]:
     c2.metric("Tasa No", f"{pct_no:.1f}%")
     c3.metric("Tasa No aplica", f"{pct_na:.1f}%")
     c4.empty()
-
     # Gauge cumplimiento global
     gauge = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -55,7 +54,6 @@ with tabs[0]:
                ]}
     ))
     st.plotly_chart(gauge, use_container_width=True)
-
     # Radar cumplimiento por bloque
     bloques = block_comp['Bloque'].tolist()
     valores = block_comp['Cumplimiento (%)'].tolist()
@@ -76,7 +74,6 @@ with tabs[2]:
     df_items.columns = ['Ítem', 'Conteo']
     fig_bar = px.bar(df_items, x='Ítem', y='Conteo', text='Conteo', title="Conteo por Ítem")
     st.plotly_chart(fig_bar, use_container_width=True)
-
     st.subheader("Nube de Palabras")
     text = " ".join(df_eval['Ítem'].tolist())
     wc = WordCloud(width=800, height=300).generate(text)
@@ -90,6 +87,22 @@ with tabs[3]:
     st.table(item_comp.nlargest(5, 'Cumplimiento (%)'))
     st.subheader("Top 5 Ítems con Menor Cumplimiento")
     st.table(item_comp.nsmallest(5, 'Cumplimiento (%)'))
+    # Gráfico Pareto de fallos ('No')
+    st.subheader("Gráfico Pareto de Fallos por Ítem")
+    df_no = df_eval[df_eval['Respuestas'] == 'No']
+    counts = df_no['Ítem'].value_counts().reset_index()
+    counts.columns = ['Ítem','Fails']
+    counts = counts.sort_values('Fails', ascending=False)
+    counts['CumPct'] = counts['Fails'].cumsum() / counts['Fails'].sum() * 100
+    pareto = go.Figure()
+    pareto.add_trace(go.Bar(x=counts['Ítem'], y=counts['Fails'], name='Número de fallos'))
+    pareto.add_trace(go.Scatter(x=counts['Ítem'], y=counts['CumPct'], name='Pct. acumulado', yaxis='y2'))
+    pareto.update_layout(
+        yaxis=dict(title='Número de fallos'),
+        yaxis2=dict(title='Pct. acumulado', overlaying='y', side='right', range=[0,100]),
+        xaxis_tickangle=-45
+    )
+    st.plotly_chart(pareto, use_container_width=True)
 
 # Heatmap
 with tabs[4]:
