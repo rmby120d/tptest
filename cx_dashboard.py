@@ -8,65 +8,59 @@ import matplotlib.pyplot as plt
 # Configuración de la página
 st.set_page_config(page_title="Evaluación de Calidad de Llamadas", layout="wide")
 st.title("Evaluación de Calidad de Llamadas")
-service = st.selectbox("Seleccionar plantilla", ["Segurcaixa eCommerce", "Otra plantilla"])
 
-# Carga de plantilla de evaluación desde Excel
-# Asegúrate de tener el archivo 'Plan de Calidad emitida SegurCaixa eCommerce.xlsx' en el mismo directorio
-raw = pd.read_excel('Plan de Calidad emitida SegurCaixa eCommerce.xlsx', header=4)
-# Primero fila con nombres de columnas
+# Carga de plantilla de evaluación: subir archivo si no está disponible
+uploaded_file = st.file_uploader("Sube la plantilla Excel de SegurCaixa", type=["xlsx"])
+if uploaded_file is None:
+    st.warning("Por favor, sube el archivo 'Plan de Calidad emitida SegurCaixa eCommerce.xlsx' para continuar.")
+    st.stop()
+
+# Leer plantilla desde el archivo subido	raw = pd.read_excel(uploaded_file, header=4)
+# Procesar encabezados
 titles = raw.iloc[0]
 raw = raw[1:]
-# Renombrar columnas
 titles_map = {col: titles[col] for col in raw.columns}
 raw = raw.rename(columns=titles_map)
-# Seleccionar y limpiar columnas relevantes
-df_templates = raw[['Bloque','Ítem','Pauta','Descripción','Respuestas','PENC','PECUF','PECC','PECN']].copy()
-df_templates = df_templates[df_templates['Ítem'].notna()]
+# Seleccionar columnas relevantes
+df_templates = raw[[ 'Bloque','Ítem','Pauta','Descripción','Respuestas','PENC','PECUF','PECC','PECN']].dropna(subset=['Ítem']).reset_index(drop=True)
 
-defensor = np.random.RandomState(42)
 # Generar datos de muestra
+np.random.seed(42)
 agents_list = ["Juan Pérez", "Ana Gómez", "Carlos Ruiz", "Lucía Martínez", "Miguel Torres"]
 num_samples = 100
-
-# IDs y fechas aleatorias
+# IDs, fechas, duraciones, puntajes aleatorios
 ids = [f"#{i:03d}" for i in range(1, num_samples + 1)]
-dates = [pd.Timestamp("2025-06-01") + pd.to_timedelta(defensor.randint(0, 10), unit='D') + pd.to_timedelta(defensor.randint(0, 24*3600), unit='s') for _ in range(num_samples)]
-durations = defensor.randint(180, 600, size=num_samples)
-scores = defensor.randint(60, 100, size=num_samples)
-
-# Tabla de detalle inicial
-df_detail = pd.DataFrame({
+dates = [pd.Timestamp("2025-06-01") + pd.to_timedelta(np.random.randint(0, 10), unit='D') + pd.to_timedelta(np.random.randint(0, 24*3600), unit='s') for _ in range(num_samples)]
+durations = np.random.randint(180, 600, size=num_samples)
+scores = np.random.randint(60, 100, size=num_samples)
+# DataFrame de detalle
+ df_detail = pd.DataFrame({
     'ID': ids,
-    'Agente': defensor.choice(agents_list, size=num_samples),
+    'Agente': np.random.choice(agents_list, size=num_samples),
     'Fecha/Hora': [d.strftime('%d/%m/%Y %H:%M') for d in dates],
     'Duración (s)': durations,
     'Puntaje': scores
 })
-
-# Sample de plantilla para cada llamada
+# Mixer de plantilla por muestra
 df_sample = df_templates.sample(n=num_samples, replace=True, random_state=42).reset_index(drop=True)
-# Combinar columnas de plantilla
-df_detail = pd.concat([df_detail, df_sample.reset_index(drop=True)], axis=1)
+df_detail = pd.concat([df_detail, df_sample], axis=1)
 
-# DataFrame de tendencia diaria
-df_trend = (df_detail
-            .assign(Fecha=pd.to_datetime(df_detail['Fecha/Hora'], dayfirst=True).dt.date)
+# Tendencia diaria
+df_trend = (pd.to_datetime(df_detail['Fecha/Hora'], dayfirst=True)
+            .to_frame(name='FechaHora')
+            .assign(Fecha=lambda d: d['FechaHora'].dt.date)
+            .join(df_detail['Puntaje'])
             .groupby('Fecha')['Puntaje']
             .mean()
             .reset_index())
-
-# DataFrame de desempeño por agente
-df_agents = (df_detail
-             .groupby('Agente')
-             .agg({'Duración (s)': 'mean', 'Puntaje': 'mean'})
-             .reset_index())
-
+# Desempeño por agente
+df_agents = df_detail.groupby('Agente').agg({'Duración (s)': 'mean', 'Puntaje': 'mean'}).reset_index()
 # Alertas e insights
-alertas_criticas = [f"{row['ID']} – Puntaje bajo ({row['Puntaje']})" for _, row in df_detail[df_detail['Puntaje'] < 70].head(5).iterrows()]
+alertas_criticas = [f"{row['ID']} – Puntaje bajo ({row['Puntaje']})" for _, row in df_detail[df_detail['Puntaje']<70].head(5).iterrows()]
 insights_ia = ["Reforzar saludo estándar en llamadas con empatía baja"]
 recomendaciones = ["Coaching para manejo de objeciones"]
 
-# Crear pestañas
+# Pestañas
 tabs = st.tabs(["Visión General", "Detalle", "Tópicos", "Agentes", "Alertas", "Reportes"])
 
 # Visión General
@@ -76,13 +70,9 @@ with tabs[0]:
     c2.metric("Operaciones", "90")
     c3.metric("Tech/Producto", "78")
     c4.metric("Alertas Críticas", str(len(alertas_criticas)))
-
     st.subheader("Tendencia de Calidad")
     fig_line = px.line(df_trend, x="Fecha", y="Puntaje", markers=True)
     st.plotly_chart(fig_line, use_container_width=True)
-
-    st.subheader("Alertas Resumidas")
-    for a in alertas_criticas[:3]: st.write(f"- {a}")
 
 # Detalle
 with tabs[1]:
@@ -92,9 +82,9 @@ with tabs[1]:
 # Tópicos
 with tabs[2]:
     st.subheader("Análisis por Tópico")
-    fig_bar = px.bar(df_templates.groupby('Ítem')['Pauta'].count().reset_index(name='Count'), x='Ítem', y='Count', text='Count')
+    df_items_count = df_detail['Ítem'].value_counts().rename_axis('Ítem').reset_index(name='Count')
+    fig_bar = px.bar(df_items_count, x='Ítem', y='Count', text='Count')
     st.plotly_chart(fig_bar, use_container_width=True)
-
     st.subheader("Nube de Palabras")
     text = " ".join(df_detail['Ítem'].tolist())
     wc = WordCloud(width=400, height=200).generate(text)
@@ -108,7 +98,6 @@ with tabs[3]:
     st.subheader("Desempeño por Agente/Equipo")
     fig_scatter = px.scatter(df_agents, x="Duración (s)", y="Puntaje", text="Agente", size="Puntaje")
     st.plotly_chart(fig_scatter, use_container_width=True)
-
     st.write("Ranking de Agentes")
     for _, row in df_agents.sort_values("Puntaje", ascending=False).iterrows():
         st.write(f"- {row['Agente']} – {row['Puntaje']:.0f}")
@@ -117,10 +106,6 @@ with tabs[3]:
 with tabs[4]:
     st.subheader("Llamadas Críticas")
     for a in alertas_criticas: st.write(f"- {a}")
-    st.subheader("Insights IA")
-    for i in insights_ia: st.write(f"- {i}")
-    st.subheader("Recomendaciones")
-    for r in recomendaciones: st.write(f"- {r}")
 
 # Reportes
 with tabs[5]:
@@ -129,6 +114,6 @@ with tabs[5]:
     if st.button("Exportar Excel"): st.success("Pendiente")
     if st.button("Programar Envío Semanal"): st.success("Pendiente")
 
-# Ejecutar:
+# Para ejecutar:
 # pip install -r requirements.txt
 # streamlit run cx_dashboard.py
