@@ -33,6 +33,10 @@ pct_na = (df['Respuestas']=="No aplica").mean()*100
 block_comp = df.groupby('Bloque').apply(lambda x:(x['Respuestas']=="Sí").mean()*100).reset_index(name='Cumplimiento (%)')
 item_comp  = df.groupby('Ítem').apply(lambda x:(x['Respuestas']=="Sí").mean()*100).reset_index(name='Cumplimiento (%)')
 
+# Convertir respuestas a score para boxplot y tendencias
+score_map = {'Sí':1, 'No aplica':0, 'No':-1}
+df['Score'] = df['Respuestas'].map(score_map)
+
 # Navegación en pestañas
 tabs = st.tabs(["Visión General","Detalle","Tópicos","Insights","Heatmap","Sentimiento"])
 
@@ -77,7 +81,8 @@ with tabs[2]:
     text = " ".join(df['Ítem'])
     wc = WordCloud(width=800, height=300, background_color='white').generate(text)
     fig, ax = plt.subplots(figsize=(12,4))
-    ax.imshow(wc.recolor(color_func=lambda *args,**kw:COLOR_CORP), interpolation='bilinear'); ax.axis('off')
+    ax.imshow(wc.recolor(color_func=lambda *args,**kw:COLOR_CORP), interpolation='bilinear')
+    ax.axis('off')
     st.pyplot(fig)
 
 # 4. Insights
@@ -85,72 +90,61 @@ with tabs[3]:
     st.subheader("Top 5 Ítems")
     st.table(item_comp.nlargest(5,'Cumplimiento (%)'))
     st.table(item_comp.nsmallest(5,'Cumplimiento (%)'))
+    st.markdown("---")
+    # Gráfico 1: Barra horizontal ordenada
+    st.subheader("Cumplimiento por Ítem (ordenado)")
+    df_sorted = item_comp.sort_values('Cumplimiento (%)', ascending=True)
+    fig1 = px.bar(df_sorted, x='Cumplimiento (%)', y='Ítem', orientation='h',
+                  color='Cumplimiento (%)', color_continuous_scale=[COLOR_CORP,'lightgray'])
+    st.plotly_chart(fig1, use_container_width=True)
+    # Gráfico 2: Box-plot de dispersión por ítem
+    st.subheader("Box-Plot de Scores por Ítem")
+    fig2 = px.box(df, x='Ítem', y='Score', points='all', title='Variabilidad de Score')
+    st.plotly_chart(fig2, use_container_width=True)
+    # Gráfico 3: Lollipop Top 5
+    st.subheader("Lollipop Chart Top 5 Ítems")
+    top5 = item_comp.nlargest(5,'Cumplimiento (%)')
+    fig3 = go.Figure()
+    fig3.add_trace(go.Scatter(x=top5['Cumplimiento (%)'], y=top5['Ítem'],
+                              mode='markers+lines', line=dict(color=COLOR_CORP),
+                              marker=dict(size=10, color=COLOR_CORP)))
+    st.plotly_chart(fig3, use_container_width=True)
+    # Gráfico 4: Heatmap Ítem vs Bloque
+    st.subheader("Heatmap de Ítem vs Bloque")
+    blk = df.groupby(['Bloque','Ítem'])['Respuestas']             .apply(lambda x:(x=='Sí').mean()*100)             .reset_index(name='Cumplimiento')
+    heat_df = blk.pivot(index='Ítem', columns='Bloque', values='Cumplimiento')
+    fig4 = px.imshow(heat_df, color_continuous_scale='Blues', title='Cumplimiento por Bloque')
+    st.plotly_chart(fig4, use_container_width=True)
+    # Gráfico 5: Small multiples tendencia Top 5
+    st.subheader("Tendencia de Score en Top 5 Ítems")
+    top_items = top5['Ítem'].tolist()
+    df_time = df[df['Ítem'].isin(top_items)].copy()
+    df_time['Index'] = df_time.groupby('Ítem').cumcount()
+    fig5 = px.line(df_time, x='Index', y='Score', color='Ítem',
+                   facet_col='Ítem', facet_col_wrap=3,
+                   title='Evolución de Score')
+    st.plotly_chart(fig5, use_container_width=True)
 
-# 5. Heatmap
+# 5. Heatmap completamiento
 with tabs[4]:
     st.subheader("Heatmap de Cumplimiento")
     mapping={"Sí":1,"No aplica":0,"No":-1}
     df_h = df.copy(); df_h['Value'] = df_h['Respuestas'].map(mapping)
-    heat = df_h.pivot(index='Ítem',columns='Llamada',values='Value')
-    fig_heat = px.imshow(
-        heat, labels={'x':'Llamada','y':'Ítem','color':'Valor'},
-        color_continuous_scale=["lightcoral","lightgray",COLOR_CORP], aspect='auto'
-    )
+    heat = df_h.pivot(index='Ítem', columns='Llamada', values='Value')
+    fig_heat = px.imshow(heat,
+                        labels={'x':'Llamada','y':'Ítem','color':'Valor'},
+                        color_continuous_scale=["lightcoral","lightgray",COLOR_CORP],
+                        aspect='auto')
     st.plotly_chart(fig_heat, use_container_width=True)
 
 # 6. Sentimiento
 with tabs[5]:
     st.subheader("Sentimiento Cliente vs Asesor")
-    df_melt = pd.melt(df, value_vars=['Sentimiento Cliente','Sentimiento Asesor'], var_name='Rol', value_name='Sentimiento')
+    df_melt = pd.melt(df, value_vars=['Sentimiento Cliente','Sentimiento Asesor'],
+                      var_name='Rol', value_name='Sentimiento')
     df_melt['Rol'] = df_melt['Rol'].map({'Sentimiento Cliente':'Cliente','Sentimiento Asesor':'Asesor'})
     counts = df_melt.groupby(['Sentimiento','Rol']).size().reset_index(name='Conteo')
-    # Gráfico actual
-    fig_bar = px.bar(
-        counts, x='Sentimiento', y='Conteo', color='Rol', barmode='group',
-        color_discrete_map={'Cliente':COLOR_CORP,'Asesor':COLOR_SEC},
-        text='Conteo', title='Distribución de Sentimientos'
-    )
+    fig_bar = px.bar(counts, x='Sentimiento', y='Conteo', color='Rol', barmode='group',
+                     color_discrete_map={'Cliente':COLOR_CORP,'Asesor':COLOR_SEC},
+                     text='Conteo', title='Distribución de Sentimientos')
     st.plotly_chart(fig_bar, use_container_width=True)
-
-    # Opciones de correlación sugeridas:
-    st.markdown("**Gráficos de correlación sugeridos:**")
-    with st.expander("1. Scatter con regresión"):
-        # Mapear a valores
-        mapping = {"Negativo +":-2, "Negativo -":-1, "Neutral +":0, "Neutral -":1, "Positivo -":2, "Positivo +":3}
-        df_plot = df.assign(
-            SentCli = df['Sentimiento Cliente'].map(mapping),
-            SentAs  = df['Sentimiento Asesor'].map(mapping))
-        fig = px.scatter(df_plot, x='SentCli', y='SentAs', trendline='ols',
-                         labels={'SentCli':'Cliente','SentAs':'Asesor'},
-                         title='Scatter Cliente vs Asesor con L. Tendencia')
-        st.plotly_chart(fig, use_container_width=True)
-    with st.expander("2. Heatmap de co-ocurrencias"):
-        df_heat2 = df_plot.groupby(['Sentimiento Cliente','Sentimiento Asesor']).size().reset_index(name='Count')
-        heat2 = df_heat2.pivot(index='Sentimiento Cliente', columns='Sentimiento Asesor', values='Count')
-        fig2 = px.imshow(heat2, color_continuous_scale='Blues', title='Co-ocurrencias')
-        st.plotly_chart(fig2, use_container_width=True)
-    with st.expander("3. Parallel Coordinates"):
-        fig3 = px.parallel_coordinates(
-            df_plot, dimensions=['SentCli','SentAs'], color='SentCli',
-            color_continuous_scale=px.colors.sequential.Viridis,
-            labels={'SentCli':'Cliente','SentAs':'Asesor'}
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-    with st.expander("4. Sankey Diagram"):
-        # Preparar nodos y enlaces
-        labels = list(mapping.keys())
-        src_tgt = df_plot.groupby(['Sentimiento Cliente','Sentimiento Asesor']).size().reset_index(name='Count')
-        label_idx = {lab:i for i,lab in enumerate(labels)}
-        link = dict(
-            source = src_tgt['Sentimiento Cliente'].map(label_idx),
-            target = src_tgt['Sentimiento Asesor'].map(label_idx),
-            value  = src_tgt['Count']
-        )
-        sankey = go.Figure(go.Sankey(node=dict(label=labels, color=COLOR_CORP),
-                                     link=link))
-        st.plotly_chart(sankey, use_container_width=True)
-    with st.expander("5. Joint Distribution"):
-        fig5 = px.scatter(df_plot, x='SentCli', y='SentAs', marginal_x='histogram', marginal_y='histogram',
-                          labels={'SentCli':'Cliente','SentAs':'Asesor'},
-                          title='Distribución Conjunta con Histogramas')
-        st.plotly_chart(fig5, use_container_width=True)
