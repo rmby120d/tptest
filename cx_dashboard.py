@@ -45,7 +45,7 @@ st.sidebar.title("Navegación")
 section = st.sidebar.radio("", ["Visión General","Detalle","Tópicos","Insights","Heatmap","Sentimiento"])
 
 # Carga de datos
-uploaded_file = st.sidebar.file_uploader("CSV con sentimiento", type=["csv"])
+uploaded_file = st.sidebar.file_uploader("Sube el CSV con sentimiento", type=["csv"])
 if not uploaded_file:
     st.sidebar.warning("Sube el CSV para iniciar análisis")
     st.stop()
@@ -68,16 +68,31 @@ def show_overview():
     c2.metric("Tasa No", f"{pct_no:.1f}%")
     c3.metric("Tasa No aplica", f"{pct_na:.1f}%")
     st.markdown('</div>', unsafe_allow_html=True)
+
     # Gráficos destacados
     st.subheader("Gráficos Destacados")
     st.markdown('<div class="card">', unsafe_allow_html=True)
     # Gauge
-    gauge = go.Figure(go.Indicator(mode="gauge+number", value=pct_si,
-        title={{'text':"Cumplimiento Global (%)"}}, gauge={{'axis':{{'range':[0,100]}}, 'bar':{{'color':COLOR_CORP}}, 'steps':[{{'range':[0,60],'color':"lightcoral"}},{{'range':[60,80],'color':"gold"}},{{'range':[80,100],'color':"lightgreen"}}]}}))
+    gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=pct_si,
+        title={'text': "Cumplimiento Global (%)"},
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'color': COLOR_CORP},
+            'steps': [
+                {'range': [0, 60], 'color': "lightcoral"},
+                {'range': [60, 80], 'color': "gold"},
+                {'range': [80, 100], 'color': "lightgreen"}
+            ]
+        }
+    ))
     gauge.update_layout(paper_bgcolor='white', font_color=COLOR_CORP)
     st.plotly_chart(gauge, use_container_width=True)
+
     # Radar
-    bloques = block_comp['Bloque'].tolist(); valores = block_comp['Cumplimiento (%)'].tolist()
+    bloques = block_comp['Bloque'].tolist()
+    valores = block_comp['Cumplimiento (%)'].tolist()
     bloques.append(bloques[0]); valores.append(valores[0])
     radar = go.Figure(go.Scatterpolar(r=valores, theta=bloques, fill='toself', marker_color=COLOR_CORP))
     radar.update_layout(polar=dict(radialaxis=dict(range=[0,100])), showlegend=False)
@@ -93,17 +108,18 @@ def show_detail():
 def show_topics():
     st.subheader("Frecuencia por Ítem")
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    df_items = df['Ítem'].value_counts().reset_index()
-    df_items.columns=['Ítem','Conteo']
+    df_items = df['Ítem'].value_counts().rename_axis('Ítem').reset_index(name='Conteo')
     bar = px.bar(df_items, x='Ítem', y='Conteo', text='Conteo', color_discrete_sequence=[COLOR_CORP])
     st.plotly_chart(bar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
     st.subheader("Nube de Palabras")
     st.markdown('<div class="card">', unsafe_allow_html=True)
     text = " ".join(df['Ítem'])
     wc = WordCloud(width=800, height=300, background_color='white').generate(text)
     fig, ax = plt.subplots(figsize=(12,4))
-    ax.imshow(wc.recolor(color_func=lambda *args,**kwargs: COLOR_CORP), interpolation='bilinear'); ax.axis('off')
+    ax.imshow(wc.recolor(color_func=lambda *args,**kwargs: COLOR_CORP), interpolation='bilinear')
+    ax.axis('off')
     st.pyplot(fig)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -114,16 +130,21 @@ def show_insights():
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.table(item_comp.nsmallest(5,'Cumplimiento (%)'))
-    # Pareto
-    st.markdown('</div><div class="card">', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Pareto de fallos
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     df_no = df[df['Respuestas']=="No"]
-    cnt = df_no['Ítem'].value_counts().reset_index(); cnt.columns=['Ítem','Fails']
+    cnt = df_no['Ítem'].value_counts().reset_index()
+    cnt.columns = ['Ítem','Fails']
     cnt = cnt.sort_values('Fails',ascending=False)
     cnt['CumPct'] = cnt['Fails'].cumsum()/cnt['Fails'].sum()*100
     pareto = go.Figure()
     pareto.add_trace(go.Bar(x=cnt['Ítem'], y=cnt['Fails'], name='Fallos', marker_color=COLOR_CORP))
     pareto.add_trace(go.Scatter(x=cnt['Ítem'], y=cnt['CumPct'], name='Acum (%)', yaxis='y2', line_color=COLOR_CORP))
-    pareto.update_layout(yaxis=dict(title='Fallos'), yaxis2=dict(title='Acum (%)', overlaying='y', side='right', range=[0,100]), xaxis_tickangle=-45, plot_bgcolor='white')
+    pareto.update_layout(yaxis=dict(title='Fallos'),
+                         yaxis2=dict(title='Acum (%)', overlaying='y', side='right', range=[0,100]),
+                         xaxis_tickangle=-45, plot_bgcolor='white')
     st.plotly_chart(pareto, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -133,8 +154,8 @@ def show_heatmap():
     mapping={"Sí":1,"No aplica":0,"No":-1}
     df_h = df.copy(); df_h['Value'] = df_h['Respuestas'].map(mapping)
     heat = df_h.pivot(index='Ítem', columns='Llamada', values='Value')
-    hfig = px.imshow(heat, labels={{'x':'Llamada','y':'Ítem','color':'Valor'}},
-                     color_continuous_scale=["lightcoral","lightgray",COLOR_CORP], aspect='auto', title='')
+    hfig = px.imshow(heat, labels={'x':'Llamada','y':'Ítem','color':'Valor'},
+                     color_continuous_scale=["lightcoral","lightgray",COLOR_CORP], aspect='auto')
     st.plotly_chart(hfig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -145,12 +166,12 @@ def show_sentiment():
     df_m['Rol'] = df_m['Rol'].map({'Sentimiento Cliente':'Cliente','Sentimiento Asesor':'Asesor'})
     counts = df_m.groupby(['Sentimiento','Rol']).size().reset_index(name='Conteo')
     fig = px.bar(counts, x='Sentimiento', y='Conteo', color='Rol', barmode='group',
-                 color_discrete_map={{'Cliente':COLOR_CORP,'Asesor':COLOR_SEC}}, text='Conteo')
+                 color_discrete_map={'Cliente':COLOR_CORP,'Asesor':COLOR_SEC}, text='Conteo')
     fig.update_layout(xaxis_tickangle=-45, plot_bgcolor='white')
     st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Renderizar sección seleccionada
+# Renderizar sección
 if section == "Visión General":
     show_overview()
 elif section == "Detalle":
