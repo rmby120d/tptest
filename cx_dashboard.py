@@ -10,43 +10,60 @@ st.set_page_config(page_title="Evaluación de Calidad de Llamadas", layout="wide
 st.title("Evaluación de Calidad de Llamadas")
 service = st.selectbox("Seleccionar plantilla", ["Segurcaixa eCommerce", "Otra plantilla"])
 
-# Datos de muestra
-fechas = pd.date_range(start="2025-06-01", periods=10, freq="D")
-puntajes = np.random.randint(70, 95, size=10)
+# Generar datos de muestra
+np.random.seed(42)
+agents_list = ["Juan Pérez", "Ana Gómez", "Carlos Ruiz", "Lucía Martínez", "Miguel Torres"]
+num_samples = 100
 
-df_trend = pd.DataFrame({"Fecha": fechas, "Puntaje": puntajes})
+# IDs
+ids = [f"#{i:03d}" for i in range(1, num_samples + 1)]
+# Fechas aleatorias entre el 1 y el 10 de junio de 2025
+dates = [pd.Timestamp("2025-06-01") + pd.to_timedelta(np.random.randint(0, 10), unit='D') + pd.to_timedelta(np.random.randint(0, 24*3600), unit='s') for _ in range(num_samples)]
+# Duraciones en segundos (entre 3 y 10 minutos)
+durations = np.random.randint(180, 600, size=num_samples)
+# Puntajes entre 60 y 100
+scores = np.random.randint(60, 100, size=num_samples)
 
-df_detail = pd.DataFrame([
-    {"ID": "#001", "Agente": "Juan Pérez", "Fecha/Hora": "14/06/2025 10:32", "Duración (s)": 324, "Puntaje": 82},
-    {"ID": "#002", "Agente": "Ana Gómez", "Fecha/Hora": "14/06/2025 11:10", "Duración (s)": 290, "Puntaje": 88},
-    {"ID": "#003", "Agente": "Carlos Ruiz", "Fecha/Hora": "14/06/2025 12:05", "Duración (s)": 370, "Puntaje": 76},
-    {"ID": "#004", "Agente": "Lucía Martínez", "Fecha/Hora": "14/06/2025 12:45", "Duración (s)": 300, "Puntaje": 91},
-    {"ID": "#005", "Agente": "Miguel Torres", "Fecha/Hora": "14/06/2025 13:15", "Duración (s)": 270, "Puntaje": 84},
-])
+# DataFrame de detalle
+df_detail = pd.DataFrame({
+    "ID": ids,
+    "Agente": np.random.choice(agents_list, size=num_samples),
+    "Fecha/Hora": [d.strftime("%d/%m/%Y %H:%M") for d in dates],
+    "Duración (s)": durations,
+    "Puntaje": scores
+})
 
+# Tendencia diaria promedio de puntaje
+df_trend = (df_detail
+            .assign(Fecha=lambda d: pd.to_datetime(d['Fecha/Hora'], dayfirst=True).dt.date)
+            .groupby('Fecha')['Puntaje']
+            .mean()
+            .reset_index())
+
+# Tópicos de ejemplo
 df_topic = pd.DataFrame({
     "Tópico": ["Escucha Activa", "Cumplimiento Script", "Empatía", "Claridad"],
     "Promedio": [88, 74, 82, 90]
 })
-
+# Desempeño por agente
 df_agents = pd.DataFrame({
-    "Agente": ["Ana Gómez", "Lucía Martínez", "Juan Pérez", "Miguel Torres", "Carlos Ruiz"],
-    "Duración (s)": [290, 300, 324, 270, 370],
-    "Puntaje": [92, 91, 85, 84, 76]
+    "Agente": agents_list,
+    "Duración (s)": [df_detail[df_detail['Agente']==a]['Duración (s)'].mean() for a in agents_list],
+    "Puntaje": [df_detail[df_detail['Agente']==a]['Puntaje'].mean() for a in agents_list]
 })
 
 # Mock alerts/insights
-alertas_criticas = ["#001 – Empatía baja", "#003 – Duración excesiva"]
-insights_ia = ["Reforzar saludo estándar en 5 llamadas", "Reducir silencios > 3s en respuestas"]
+alertas_criticas = [f"{row['ID']} – Puntaje bajo ({row['Puntaje']})" for _, row in df_detail[df_detail['Puntaje'] < 70].head(5).iterrows()]
+insights_ia = ["Reforzar saludo estándar en llamadas con empatía baja"]
 recomendaciones = ["Coaching para manejo de objeciones"]
 
-# Tabs
+# Crear pestañas
 tabs = st.tabs(["Visión General", "Detalle", "Tópicos", "Agentes", "Alertas", "Reportes"])
 
 # Visión General
 with tabs[0]:
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Puntaje Global", f"{df_trend['Puntaje'].mean():.0f}")
+    c1.metric("Puntaje Global", f"{df_detail['Puntaje'].mean():.0f}")
     c2.metric("Operaciones", "90")
     c3.metric("Tech/Producto", "78")
     c4.metric("Alertas Críticas", str(len(alertas_criticas)))
@@ -56,12 +73,12 @@ with tabs[0]:
     st.plotly_chart(fig_line, use_container_width=True)
 
     st.subheader("Alertas Resumidas")
-    for a in ["Juan Pérez: baja empatía (2)", "Ana Gómez: script <70%", "Carlos Ruiz: demora >30s"]:
+    for a in alertas_criticas[:3]:
         st.write(f"- {a}")
 
 # Detalle
 with tabs[1]:
-    st.subheader("Detalle por Evaluación")
+    st.subheader("Detalle por Evaluación (100 muestras)")
     st.dataframe(df_detail, use_container_width=True)
 
 # Tópicos
@@ -85,8 +102,9 @@ with tabs[3]:
     st.plotly_chart(fig_scatter, use_container_width=True)
 
     st.write("Ranking de Agentes")
-    for i, row in df_agents.sort_values("Puntaje", ascending=False).iterrows():
-        st.write(f"- {row['Agente']} – {row['Puntaje']}")
+    ranking = df_agents.sort_values("Puntaje", ascending=False)
+    for _, row in ranking.iterrows():
+        st.write(f"- {row['Agente']} – {row['Puntaje']:.0f}")
 
 # Alertas e Insights
 with tabs[4]:
@@ -111,5 +129,5 @@ with tabs[5]:
         st.success("Funcionalidad de programación (pendiente)")
 
 # Para ejecutar:
-# pip install streamlit pandas plotly wordcloud matplotlib
-# streamlit run streamlit_dashboard.py
+# pip install streamlit pandas numpy plotly wordcloud matplotlib
+# streamlit run cx_dashboard.py
